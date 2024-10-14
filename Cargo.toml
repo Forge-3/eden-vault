@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "src/eden_vault_backend"
+]
+resolver = "2"
