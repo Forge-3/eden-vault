@@ -3,7 +3,10 @@
     "eden_vault_backend": {
       "candid": "src/eden_vault_backend/eden_vault_backend.did",
       "package": "eden_vault_backend",
-      "type": "rust"
+      "type": "custom",
+      "wasm": "target/wasm32-unknown-unknown/release/eden_vault_backend-opt.wasm.gz",
+      "build": "./build.sh eden_vault_backend",
+      "optimize": "cycles"
     }
   },
   "defaults": {
