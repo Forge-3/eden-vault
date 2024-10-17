@@ -12,3 +12,8 @@ crate-type = ["cdylib"]
 candid = "0.10"
 ic-cdk = "0.16"
 ic-cdk-timers = "0.10" # Feel free to remove this dependency if you don't need timers
+minicbor = { version = "0.19.1", features = ["alloc", "derive"] }
+serde = { version = "1.0.210", features = ["derive"] }
+hex = "0.4.3"
+keccak = "0.2.0-pre.0"
+ic-sha3 = "1.0.0"
