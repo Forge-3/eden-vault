@@ -152,6 +152,7 @@ impl State {
         let cketh_ledger_transfer_fee = match self.ethereum_network {
             EthereumNetwork::Mainnet => Wei::new(2_000_000_000_000),
             EthereumNetwork::Sepolia => Wei::new(10_000_000_000),
+            EthereumNetwork::Local => Wei::new(1_000_000_000)
         };
         if self.cketh_minimum_withdrawal_amount < cketh_ledger_transfer_fee {
             return Err(InvalidStateError::InvalidMinimumWithdrawalAmount(

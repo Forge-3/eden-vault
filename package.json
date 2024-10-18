@@ -1,0 +1,33 @@
+{
+    "name": "eden_vault_backend",
+    "version": "1.0.0",
+    "scripts": {
+        "test": ". ./dev.sh && ts-mocha -p ./tests/tsconfig.json -t 1000000 tests/**/*.spec.cts"
+    },
+    "devDependencies": {
+        "@dfinity/agent": "^2.1.2",
+        "@dfinity/candid": "^2.1.2",
+        "@dfinity/identity": "^2.1.2",
+        "@dfinity/identity-secp256k1": "^2.1.2",
+        "@dfinity/ledger-icp": "^2.6.1",
+        "@dfinity/nns-proto": "^2.0.1",
+        "@dfinity/principal": "^2.1.2",
+        "@dfinity/utils": "^2.5.2",
+        "@types/chai": "^5.0.0",
+        "@types/chai-as-promised": "^8.0.1",
+        "@types/mocha": "^10.0.9",
+        "@types/node": "^22.7.6",
+        "chai": "^4.3.11",
+        "chai-as-promised": "^7.1.1",
+        "dotenv": "^16.4.5",
+        "mocha": "^10.7.3",
+        "node-fetch": "^3.3.2",
+        "ts-mocha": "^10.0.0",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.6.3"
+    },
+    "dependencies": {
+        "@typechain/ethers-v6": "^0.5.1",
+        "ethers": "^6.13.4"
+    }
+}

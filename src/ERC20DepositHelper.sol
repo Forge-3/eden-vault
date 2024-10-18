@@ -451,7 +451,7 @@ library SafeERC20 {
         // We need to perform a low level call here, to bypass Solidity's return data size checking mechanism, since
         // we're implementing it ourselves. We cannot use {Address-functionCall} here since this should return false
         // and not revert is the subcall reverts.
-
+        
         (bool success, bytes memory returndata) = address(token).call(data);
         return success && (returndata.length == 0 || abi.decode(returndata, (bool))) && address(token).code.length > 0;
     }
@@ -498,7 +498,7 @@ contract CkErc20Deposit {
     function deposit(address erc20_address, uint256 amount, bytes32 principal) public {
         IERC20 erc20Token = IERC20(erc20_address);
         erc20Token.safeTransferFrom(msg.sender, cketh_minter_main_address, amount);
-
+        
         emit ReceivedErc20(erc20_address, msg.sender, amount, principal);
     }
 }

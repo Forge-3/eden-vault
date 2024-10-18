@@ -22,6 +22,7 @@ use evm_rpc_client::{
 use ic_canister_log::log;
 use ic_ethereum_types::Address;
 use num_traits::ToPrimitive;
+use providers::LOCAL_PROVIDERS;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
@@ -62,10 +63,15 @@ impl EthRpcClient {
             let providers = match client.chain {
                 EthereumNetwork::Mainnet => EvmRpcServices::EthMainnet(None),
                 EthereumNetwork::Sepolia => EvmRpcServices::EthSepolia(None),
+                EthereumNetwork::Local => EvmRpcServices::Custom { chain_id: client.chain.chain_id(), services: [evm_rpc_client::RpcApi {
+                    url: String::from("http://127.0.0.1:8545"),
+                    headers: None,
+                }].to_vec() },
             };
             let min_threshold = match client.chain {
                 EthereumNetwork::Mainnet => 3_u8,
                 EthereumNetwork::Sepolia => 2_u8,
+                EthereumNetwork::Local => 1_u8,
             };
             assert!(
                 min_threshold <= TOTAL_NUMBER_OF_PROVIDERS,
@@ -106,6 +112,7 @@ impl EthRpcClient {
         match self.chain {
             EthereumNetwork::Mainnet => &MAINNET_PROVIDERS,
             EthereumNetwork::Sepolia => &SEPOLIA_PROVIDERS,
+            EthereumNetwork::Local => &LOCAL_PROVIDERS
         }
     }
 
@@ -224,6 +231,7 @@ impl EthRpcClient {
         }
 
         let expected_block_size = match self.chain {
+            EthereumNetwork::Local => 12 * 1024,
             EthereumNetwork::Sepolia => 12 * 1024,
             EthereumNetwork::Mainnet => 24 * 1024,
         };

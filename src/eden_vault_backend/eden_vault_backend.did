@@ -27,7 +27,7 @@ type DefiniteCanisterSettings = record {
   compute_allocation : nat;
 };
 type EthTransaction = record { transaction_hash : text };
-type EthereumNetwork = variant { Mainnet; Sepolia };
+type EthereumNetwork = variant { Mainnet; Local; Sepolia };
 type Event = record { timestamp : nat64; payload : EventPayload };
 type EventPayload = variant {
   SkippedBlock : record { block_number : nat; contract_address : opt text };

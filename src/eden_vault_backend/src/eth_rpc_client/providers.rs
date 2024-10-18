@@ -14,11 +14,16 @@ pub(crate) const SEPOLIA_PROVIDERS: [RpcNodeProvider; 4] = [
     RpcNodeProvider::Sepolia(SepoliaProvider::RpcSepolia),
 ];
 
+pub(crate) const LOCAL_PROVIDERS: [RpcNodeProvider; 1] = [
+    RpcNodeProvider::Local(LocalService::Local),
+];
+
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub(crate) enum RpcNodeProvider {
     Ethereum(EthereumProvider),
     Sepolia(SepoliaProvider),
     EvmRpc(EvmRpcService),
+    Local(LocalService),
 }
 
 impl RpcNodeProvider {
@@ -27,6 +32,7 @@ impl RpcNodeProvider {
         match self {
             Self::Ethereum(provider) => provider.ethereum_mainnet_endpoint_url(),
             Self::Sepolia(provider) => provider.ethereum_sepolia_endpoint_url(),
+            Self::Local(provider) => provider.local_evm_endpoint_url(),
             RpcNodeProvider::EvmRpc(_) => {
                 panic!("BUG: should not need URL of provider from EVM RPC canister")
             }
@@ -74,6 +80,20 @@ impl SepoliaProvider {
             SepoliaProvider::PublicNode => "https://ethereum-sepolia-rpc.publicnode.com",
             SepoliaProvider::Alchemy => "https://eth-sepolia.g.alchemy.com/v2/demo",
             SepoliaProvider::RpcSepolia => "https://rpc.sepolia.org",
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum LocalService {
+    // http://127.0.0.1:8545/
+    Local
+}
+
+impl LocalService {
+    fn local_evm_endpoint_url(&self) -> &str {
+        match self {
+            LocalService::Local => "http://127.0.0.1:8545",
         }
     }
 }
