@@ -29,9 +29,13 @@ export BOB_PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603
 MINTER_ADDRESS=$(dfx canister call eden_vault_backend minter_address --output json | sed 's/^.//;s/.$//')
 export MINTER_ADDRESS
 
-DEPLOY_OUTPUT=$(forge create ./src/ERC20DepositHelper.sol:CkErc20Deposit --rpc-url 127.0.0.1:8545 --private-key $ALICE_PRIVATE_KEY --constructor-args $MINTER_ADDRESS)
-
-CK_ERC20_DEPOSIT_ADDRESS=$(echo "$DEPLOY_OUTPUT" | grep -oE "Deployed to: 0x[0-9a-fA-F]{40}" | sed 's/Deployed to: //')
+CK_ERC20_DEPOSIT_DEPLOY_OUTPUT=$(forge create ./src/ERC20DepositHelper.sol:CkErc20Deposit --rpc-url 127.0.0.1:8545 --private-key $ALICE_PRIVATE_KEY --constructor-args $MINTER_ADDRESS)
+CK_ERC20_DEPOSIT_ADDRESS=$(echo "$CK_ERC20_DEPOSIT_DEPLOY_OUTPUT" | grep -oE "Deployed to: 0x[0-9a-fA-F]{40}" | sed 's/Deployed to: //')
 export CK_ERC20_DEPOSIT_ADDRESS
 
+FORGE_TOKEN_DEPLOY_OUTPUT=$(forge create ./src/ForgeToken.sol:ForgeToken --rpc-url 127.0.0.1:8545 --private-key $ALICE_PRIVATE_KEY --constructor-args $MINTER_ADDRESS)
+FORGE_TOKEN_ADDRESS=$(echo "$FORGE_TOKEN_DEPLOY_OUTPUT" | grep -oE "Deployed to: 0x[0-9a-fA-F]{40}" | sed 's/Deployed to: //')
+export FORGE_TOKEN_ADDRESS
+
+npx typechain --target ethers-v6 --out-dir ./types './out/**/ForgeToken.json'
 npx typechain --target ethers-v6 --out-dir ./types './out/**/CkErc20Deposit.json'
