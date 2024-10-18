@@ -492,22 +492,22 @@ fn is_address_blocked(address_string: String) -> bool {
     eden_vault_backend::blocklist::is_blocked(&address)
 }
 
-/*
+
 #[update]
 async fn add_ckerc20_token(erc20_token: AddCkErc20Token) {
-    let orchestrator_id = read_state(|s| s.ledger_suite_orchestrator_id)
-        .unwrap_or_else(|| ic_cdk::trap("ERROR: ERC-20 feature is not activated"));
-    if orchestrator_id != ic_cdk::caller() {
-        ic_cdk::trap(&format!(
-            "ERROR: only the orchestrator {} can add ERC-20 tokens",
-            orchestrator_id
-        ));
-    }
+    // let orchestrator_id = read_state(|s| s.ledger_suite_orchestrator_id)
+    //     .unwrap_or_else(|| ic_cdk::trap("ERROR: ERC-20 feature is not activated"));
+    // if orchestrator_id != ic_cdk::caller() {
+    //     ic_cdk::trap(&format!(
+    //         "ERROR: only the orchestrator {} can add ERC-20 tokens",
+    //         orchestrator_id
+    //     ));
+    // }
     let ckerc20_token = erc20::CkErc20Token::try_from(erc20_token)
         .unwrap_or_else(|e| ic_cdk::trap(&format!("ERROR: {}", e)));
     mutate_state(|s| process_event(s, EventType::AddedCkErc20Token(ckerc20_token)));
 }
-    */
+
 
 #[update]
 async fn get_canister_status() -> ic_cdk::api::management_canister::main::CanisterStatusResponse {
