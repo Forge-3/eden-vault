@@ -30,10 +30,12 @@ describe("E2E", () => {
     it("allow user to bridge from EVM to ICP", async () => {
         const principalBytes = aliceIdentity.getPrincipal().toUint8Array();
 
-        const result = await ckErc20DepositContract.deposit(forgeTokenAddress, ethers.parseUnits("1.0", 9), Buffer.alloc(32));
-        
+        const result =
+            await ckErc20DepositContract.deposit(forgeTokenAddress, ethers.parseUnits("1.0", 9), Buffer.alloc(32), {
+            gasLimit: 1000000
+        });
         console.log("result: ", result);
-        // 30000000
+
     })
-    
+
 })

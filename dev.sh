@@ -37,5 +37,17 @@ FORGE_TOKEN_DEPLOY_OUTPUT=$(forge create ./src/ForgeToken.sol:ForgeToken --rpc-u
 FORGE_TOKEN_ADDRESS=$(echo "$FORGE_TOKEN_DEPLOY_OUTPUT" | grep -oE "Deployed to: 0x[0-9a-fA-F]{40}" | sed 's/Deployed to: //')
 export FORGE_TOKEN_ADDRESS
 
+dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
+    next_transaction_nonce = opt 0 : opt nat;
+    minimum_withdrawal_amount = opt 10_000_000_000 : opt nat;
+    ethereum_contract_address = null : opt text;
+    ethereum_block_height = opt variant { Latest } : opt variant { Latest : nat; Height : nat };
+    erc20_helper_contract_address = opt '"$CK_ERC20_DEPOSIT_ADDRESS"' : opt text;
+    last_erc20_scraped_block_number = null : opt nat;
+    ledger_suite_orchestrator_id = null : opt principal;
+    evm_rpc_id = null : opt principal;
+} })' --mode upgrade
+
+
 npx typechain --target ethers-v6 --out-dir ./types './out/**/ForgeToken.json'
 npx typechain --target ethers-v6 --out-dir ./types './out/**/CkErc20Deposit.json'
