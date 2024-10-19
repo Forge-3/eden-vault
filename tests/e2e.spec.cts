@@ -1,11 +1,15 @@
 import {setupTests} from "./utils/utils";
 import { getDefaultIdentities } from "./utils/identities";
-import { Contract, ethers, getDefaultProvider, Wallet } from "ethers";
+import { AbstractProvider, Contract, ethers, getDefaultProvider, Wallet } from "ethers";
 import CkErc20DepositAbi from "../out/ERC20DepositHelper.sol/CkErc20Deposit.json"
 import ForgeTokenAbi from "../out/ForgeToken.sol/ForgeToken.json"
 import { CkErc20Deposit } from "../types"
 import {ForgeToken, ForgeTokenInterface} from "../types/ForgeToken"
 import {expect} from "chai";
+
+const getNonce = async (provider: AbstractProvider, signer: Wallet) =>{
+    return await provider.getTransactionCount(signer.address, "latest") + 1
+}
 
 setupTests();
 
@@ -32,7 +36,7 @@ describe("E2E",  () => {
 
         const amount = ethers.parseUnits("1.0", 9);
         const approveResult = await forgeTokenContract.approve(ckErc20DepositAddress, amount, {
-            nonce: await provider.getTransactionCount(aliceSigner.address, "latest")
+            nonce: await getNonce(provider, aliceSigner)
         });
         console.log("approveResult: ", approveResult)
 
@@ -43,7 +47,7 @@ describe("E2E",  () => {
         const depositResult =
             await ckErc20DepositContract.deposit(forgeTokenAddress, amount, Buffer.alloc(32), {
                 gasLimit: 1000000,
-                nonce: await provider.getTransactionCount(aliceSigner.address, "latest")
+                nonce: await getNonce(provider, aliceSigner)
             });
 
         console.log("depositResult: ", depositResult)
