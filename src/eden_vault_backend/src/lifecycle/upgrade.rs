@@ -14,12 +14,8 @@ pub struct UpgradeArg {
     pub next_transaction_nonce: Option<Nat>,
     #[cbor(n(1), with = "crate::cbor::nat::option")]
     pub minimum_withdrawal_amount: Option<Nat>,
-    #[n(2)]
-    pub ethereum_contract_address: Option<String>,
     #[n(3)]
     pub ethereum_block_height: Option<CandidBlockTag>,
-    #[cbor(n(4), with = "crate::cbor::principal::option")]
-    pub ledger_suite_orchestrator_id: Option<Principal>,
     #[n(5)]
     pub erc20_helper_contract_address: Option<String>,
     #[cbor(n(6), with = "crate::cbor::nat::option")]

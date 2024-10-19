@@ -1,4 +1,3 @@
-use crate::ledger_client::LedgerBurnError;
 use crate::state::transactions::Erc20WithdrawalRequest;
 use candid::{CandidType, Deserialize, Nat, Principal};
 
@@ -63,44 +62,4 @@ pub enum LedgerError {
         ledger_id: Principal,
     },
     TemporarilyUnavailable(String),
-}
-
-impl From<LedgerBurnError> for LedgerError {
-    fn from(error: LedgerBurnError) -> Self {
-        match error {
-            LedgerBurnError::TemporarilyUnavailable { message, .. } => {
-                LedgerError::TemporarilyUnavailable(message)
-            }
-            LedgerBurnError::InsufficientFunds {
-                balance,
-                failed_burn_amount,
-                ledger,
-            } => LedgerError::InsufficientFunds {
-                balance,
-                failed_burn_amount,
-                token_symbol: ledger.token_symbol.to_string(),
-                ledger_id: ledger.id,
-            },
-            LedgerBurnError::InsufficientAllowance {
-                allowance,
-                failed_burn_amount,
-                ledger,
-            } => LedgerError::InsufficientAllowance {
-                allowance,
-                failed_burn_amount,
-                token_symbol: ledger.token_symbol.to_string(),
-                ledger_id: ledger.id,
-            },
-            LedgerBurnError::AmountTooLow {
-                minimum_burn_amount,
-                failed_burn_amount,
-                ledger,
-            } => LedgerError::AmountTooLow {
-                minimum_burn_amount,
-                failed_burn_amount,
-                token_symbol: ledger.token_symbol.to_string(),
-                ledger_id: ledger.id,
-            },
-        }
-    }
 }

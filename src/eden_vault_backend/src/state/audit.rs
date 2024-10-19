@@ -20,9 +20,6 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
                 .upgrade(upgrade_arg.clone())
                 .expect("applying upgrade event should succeed");
         }
-        EventType::AcceptedDeposit(eth_event) => {
-            state.record_event_to_mint(&eth_event.clone().into());
-        }
         EventType::AcceptedErc20Deposit(erc20_event) => {
             state.record_event_to_mint(&erc20_event.clone().into());
         }
@@ -32,27 +29,14 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         } => {
             let _ = state.record_invalid_deposit(*event_source, reason.clone());
         }
-        EventType::MintedCkEth {
-            event_source,
-            mint_block_index,
-        } => {
-            state.record_successful_mint(
-                *event_source,
-                &CkTokenSymbol::cketh_symbol_from_state(state).to_string(),
-                *mint_block_index,
-                None,
-            );
-        }
         EventType::MintedCkErc20 {
             event_source,
-            mint_block_index,
             ckerc20_token_symbol,
             erc20_contract_address,
         } => {
             state.record_successful_mint(
                 *event_source,
                 ckerc20_token_symbol,
-                *mint_block_index,
                 Some(*erc20_contract_address),
             );
         }
@@ -61,11 +45,6 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         }
         EventType::SyncedErc20ToBlock { block_number } => {
             state.last_erc20_scraped_block_number = *block_number;
-        }
-        EventType::AcceptedEthWithdrawalRequest(request) => {
-            state
-                .eth_transactions
-                .record_withdrawal_request(request.clone());
         }
         EventType::CreatedTransaction {
             withdrawal_id,
@@ -116,9 +95,6 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         } => {
             state.record_skipped_block_for_contract(*contract_address, *block_number);
         }
-        EventType::AddedCkErc20Token(ckerc20_token) => {
-            state.record_add_ckerc20_token(ckerc20_token.clone());
-        }
         EventType::AcceptedErc20WithdrawalRequest(request) => {
             state.record_erc20_withdrawal_request(request.clone())
         }
@@ -138,8 +114,10 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         }
         EventType::FailedErc20WithdrawalRequest(cketh_reimbursement_request) => {
             state.eth_transactions.record_reimbursement_request(
-                ReimbursementIndex::CkEth {
-                    ledger_burn_index: cketh_reimbursement_request.ledger_burn_index,
+                ReimbursementIndex::CkErc20 {
+                    ckerc20_ledger_burn_index: cketh_reimbursement_request.ledger_burn_index,
+                    ledger_id: ,
+                    cketh_ledger_burn_index: ,
                 },
                 cketh_reimbursement_request.clone(),
             )

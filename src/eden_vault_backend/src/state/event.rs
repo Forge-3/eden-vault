@@ -22,9 +22,6 @@ pub enum EventType {
     /// The minter upgraded with the specified arguments.
     #[n(1)]
     Upgrade(#[n(0)] UpgradeArg),
-    /// The minter discovered a ckETH deposit in the helper contract logs.
-    #[n(2)]
-    AcceptedDeposit(#[n(0)] ReceivedEthEvent),
     /// The minter discovered an invalid ckETH deposit in the helper contract logs.
     #[n(4)]
     InvalidDeposit {
@@ -35,16 +32,6 @@ pub enum EventType {
         #[n(1)]
         reason: String,
     },
-    /// The minter minted ckETH in response to a deposit.
-    #[n(5)]
-    MintedCkEth {
-        /// The unique identifier of the deposit on the Ethereum network.
-        #[n(0)]
-        event_source: EventSource,
-        /// The transaction index on the ckETH ledger.
-        #[cbor(n(1), with = "crate::cbor::id")]
-        mint_block_index: LedgerMintIndex,
-    },
     /// The minter processed the helper smart contract logs up to the specified height.
     #[n(6)]
     SyncedToBlock {
@@ -52,9 +39,6 @@ pub enum EventType {
         #[n(0)]
         block_number: BlockNumber,
     },
-    /// The minter accepted a new ETH withdrawal request.
-    #[n(7)]
-    AcceptedEthWithdrawalRequest(#[n(0)] EthWithdrawalRequest),
     /// The minter created a new transaction to handle a withdrawal request.
     #[n(8)]
     CreatedTransaction {
@@ -97,9 +81,6 @@ pub enum EventType {
     /// or the transaction fee associated with a ckERC20 withdrawal.
     #[n(12)]
     ReimbursedEthWithdrawal(#[n(0)] Reimbursed),
-    /// Add a new ckERC20 token.
-    #[n(14)]
-    AddedCkErc20Token(#[n(0)] CkErc20Token),
     /// The minter discovered a ckERC20 deposit in the helper contract logs.
     #[n(15)]
     AcceptedErc20Deposit(#[n(0)] ReceivedErc20Event),
@@ -111,9 +92,6 @@ pub enum EventType {
         /// The unique identifier of the deposit on the Ethereum network.
         #[n(0)]
         event_source: EventSource,
-        /// The transaction index on the ckETH ledger.
-        #[cbor(n(1), with = "crate::cbor::id")]
-        mint_block_index: LedgerMintIndex,
         #[n(2)]
         ckerc20_token_symbol: String,
         #[n(3)]
@@ -169,7 +147,6 @@ pub enum EventType {
 impl ReceivedEvent {
     pub fn into_deposit(self) -> EventType {
         match self {
-            ReceivedEvent::Eth(event) => EventType::AcceptedDeposit(event),
             ReceivedEvent::Erc20(event) => EventType::AcceptedErc20Deposit(event),
         }
     }

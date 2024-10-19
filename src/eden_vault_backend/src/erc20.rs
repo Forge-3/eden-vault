@@ -37,16 +37,6 @@ impl Display for CkTokenSymbol {
     }
 }
 
-impl CkTokenSymbol {
-    pub fn cketh_symbol_from_state(state: &State) -> Self {
-        match state.ethereum_network {
-            EthereumNetwork::Mainnet => Self::from_str("ckETH").unwrap(),
-            EthereumNetwork::Sepolia => Self::from_str("ckSepoliaETH").unwrap(),
-            EthereumNetwork::Local => Self::from_str("ckLocalETH").unwrap(),
-        }
-    }
-}
-
 impl FromStr for CkTokenSymbol {
     type Err = String;
 

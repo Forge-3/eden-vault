@@ -37,7 +37,6 @@ thread_local! {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct MintedEvent {
     pub deposit_event: ReceivedEvent,
-    pub mint_block_index: LedgerMintIndex,
     pub token_symbol: String,
     pub erc20_contract_address: Option<Address>,
 }
@@ -50,6 +49,7 @@ impl MintedEvent {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct State {
+    pub admin: Principal,
     pub ethereum_network: EthereumNetwork,
     pub ecdsa_key_name: String,
     pub erc20_helper_contract_address: Option<Address>,
@@ -91,11 +91,9 @@ pub struct State {
     pub evm_rpc_id: Option<Principal>,
 
     /// ERC-20 tokens that the minter can mint:
-    /// - primary key: ledger ID for the ckERC20 token
-    /// - secondary key: ERC-20 contract address on Ethereum
-    /// - value: ckERC20 token symbol
-    pub ckerc20_tokens: DedupMultiKeyMap<Principal, Address, CkTokenSymbol>,
-
+    /// - 0 item: ERC-20 contract address on Ethereum
+    /// - 1 item: ckERC20 token symbol
+    pub ckerc20_tokens: (Address, CkTokenSymbol),
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -108,6 +106,8 @@ pub enum InvalidStateError {
     InvalidMinimumWithdrawalAmount(String),
     InvalidLastScrapedBlockNumber(String),
     InvalidLastErc20ScrapedBlockNumber(String),
+    InvalidCkErc20Address(String),
+    InvalidCkTokenSymbol(String),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -138,6 +138,10 @@ impl Display for InvalidEventReason {
 }
 
 impl State {
+    pub fn set_admin(&mut self, new_admin: Principal) {
+        self.admin = new_admin;
+    }
+
     pub fn validate_config(&self) -> Result<(), InvalidStateError> {
         if self.ecdsa_key_name.trim().is_empty() {
             return Err(InvalidStateError::InvalidEcdsaKeyName(
@@ -186,8 +190,7 @@ impl State {
         assert!(!self.invalid_events.contains_key(&event_source));
         if let ReceivedEvent::Erc20(event) = event {
             assert!(
-                self.ckerc20_tokens
-                    .contains_alt(&event.erc20_contract_address),
+                self.ckerc20_tokens.0 == event.erc20_contract_address,
                 "BUG: unsupported ERC-20 contract address in event {event:?}"
             )
         }
@@ -199,31 +202,6 @@ impl State {
 
     pub fn has_events_to_mint(&self) -> bool {
         !self.events_to_mint.is_empty()
-    }
-
-    pub fn find_ck_erc20_token_by_ledger_id(
-        &self,
-        ckerc20_ledger_id: &Principal,
-    ) -> Option<CkErc20Token> {
-        self.ckerc20_tokens
-            .get_entry(ckerc20_ledger_id)
-            .map(|(erc20_address, symbol)| CkErc20Token {
-                erc20_contract_address: *erc20_address,
-                ckerc20_ledger_id: *ckerc20_ledger_id,
-                erc20_ethereum_network: self.ethereum_network,
-                ckerc20_token_symbol: symbol.clone(),
-            })
-    }
-
-    pub fn supported_ck_erc20_tokens(&self) -> impl Iterator<Item = CkErc20Token> + '_ {
-        self.ckerc20_tokens
-            .iter()
-            .map(|(ledger_id, erc20_address, symbol)| CkErc20Token {
-                erc20_contract_address: *erc20_address,
-                ckerc20_ledger_id: *ledger_id,
-                erc20_ethereum_network: self.ethereum_network,
-                ckerc20_token_symbol: symbol.clone(),
-            })
     }
 
     /// Quarantine the deposit event to prevent double minting.
@@ -263,7 +241,6 @@ impl State {
         &mut self,
         source: EventSource,
         token_symbol: &str,
-        mint_block_index: LedgerMintIndex,
         erc20_contract_address: Option<Address>,
     ) {
         assert!(
@@ -279,7 +256,6 @@ impl State {
                 source,
                 MintedEvent {
                     deposit_event,
-                    mint_block_index,
                     token_symbol: token_symbol.to_string(),
                     erc20_contract_address,
                 },
@@ -291,8 +267,8 @@ impl State {
 
     pub fn record_erc20_withdrawal_request(&mut self, request: Erc20WithdrawalRequest) {
         assert!(
-            self.ckerc20_tokens
-                .contains_alt(&request.erc20_contract_address),
+            self.ckerc20_tokens.0
+                == request.erc20_contract_address,
             "BUG: unsupported ERC-20 token {}",
             request.erc20_contract_address
         );
@@ -319,7 +295,6 @@ impl State {
 
     fn update_balance_upon_deposit(&mut self, event: &ReceivedEvent) {
         match event {
-            ReceivedEvent::Eth(event) => self.eth_balance.eth_balance_add(event.value),
             ReceivedEvent::Erc20(event) => self
                 .erc20_balances
                 .erc20_add(event.erc20_contract_address, event.value),
@@ -341,10 +316,6 @@ impl State {
             .get_processed_withdrawal_request(withdrawal_id)
             .expect("BUG: missing withdrawal request");
         let charged_tx_fee = match withdrawal_request {
-            WithdrawalRequest::CkEth(req) => req
-                .withdrawal_amount
-                .checked_sub(tx.transaction().amount)
-                .expect("BUG: withdrawal amount MUST always be at least the transaction amount"),
             WithdrawalRequest::CkErc20(req) => req.max_transaction_fee,
         };
         let unspent_tx_fee = charged_tx_fee.checked_sub(tx_fee).expect(
@@ -385,45 +356,13 @@ impl State {
         );
     }
 
-    pub fn record_add_ckerc20_token(&mut self, ckerc20_token: CkErc20Token) {
-        assert_eq!(
-            self.ethereum_network, ckerc20_token.erc20_ethereum_network,
-            "ERROR: Expected {}, but got {}",
-            self.ethereum_network, ckerc20_token.erc20_ethereum_network
-        );
-        let ckerc20_with_same_symbol = self
-            .supported_ck_erc20_tokens()
-            .filter(|ckerc20| ckerc20.ckerc20_token_symbol == ckerc20_token.ckerc20_token_symbol)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            ckerc20_with_same_symbol,
-            vec![],
-            "ERROR: ckERC20 token symbol {} is already used by {:?}",
-            ckerc20_token.ckerc20_token_symbol,
-            ckerc20_with_same_symbol
-        );
-        assert_eq!(
-            self.ckerc20_tokens.try_insert(
-                ckerc20_token.ckerc20_ledger_id,
-                ckerc20_token.erc20_contract_address,
-                ckerc20_token.ckerc20_token_symbol,
-            ),
-            Ok(()),
-            "ERROR: some ckERC20 tokens use the same ckERC20 ledger ID or ERC-20 address"
-        );
-    }
-
     pub fn erc20_balances_by_token_symbol(&self) -> BTreeMap<&CkTokenSymbol, &Erc20Value> {
         self.erc20_balances
             .balance_by_erc20_contract
             .iter()
-            .map(|(erc20_contract, balance)| {
-                let symbol = self
-                    .ckerc20_tokens
-                    .get_alt(erc20_contract)
-                    .unwrap_or_else(|| {
-                        panic!("BUG: missing symbol for ERC-20 contract {}", erc20_contract)
-                    });
+            .map(|(_, balance)| {
+                let symbol = &self
+                    .ckerc20_tokens.1;
                 (symbol, balance)
             })
             .collect()
@@ -443,9 +382,7 @@ impl State {
         let UpgradeArg {
             next_transaction_nonce,
             minimum_withdrawal_amount,
-            ethereum_contract_address,
             ethereum_block_height,
-            ledger_suite_orchestrator_id,
             erc20_helper_contract_address,
             last_erc20_scraped_block_number,
             evm_rpc_id,

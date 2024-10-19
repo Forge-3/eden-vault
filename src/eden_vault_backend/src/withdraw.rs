@@ -57,7 +57,6 @@ pub async fn process_reimbursement() {
             mutate_state(|s| process_event(s, EventType::QuarantinedReimbursement { index }));
         });
         let ledger_canister_id = match index {
-            ReimbursementIndex::CkEth { .. } => todo!(),
             ReimbursementIndex::CkErc20 { ledger_id, .. } => ledger_id,
         };
         let client = ICRC1Client {
@@ -108,9 +107,6 @@ pub async fn process_reimbursement() {
             transaction_hash: reimbursement_request.transaction_hash,
         };
         let event = match index {
-            ReimbursementIndex::CkEth {
-                ledger_burn_index: _,
-            } => EventType::ReimbursedEthWithdrawal(reimbursed),
             ReimbursementIndex::CkErc20 {
                 cketh_ledger_burn_index,
                 ledger_id,
@@ -277,7 +273,6 @@ fn create_transactions_batch(gas_fee_estimate: GasFeeEstimate) {
 
 pub fn estimate_gas_limit(withdrawal_request: &WithdrawalRequest) -> GasAmount {
     match withdrawal_request {
-        WithdrawalRequest::CkEth(_) => CKETH_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
         WithdrawalRequest::CkErc20(_) => CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
     }
 }

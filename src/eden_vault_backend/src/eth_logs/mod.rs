@@ -49,15 +49,9 @@ pub struct ReceivedErc20Event {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum ReceivedEvent {
-    Eth(ReceivedEthEvent),
     Erc20(ReceivedErc20Event),
 }
 
-impl From<ReceivedEthEvent> for ReceivedEvent {
-    fn from(event: ReceivedEthEvent) -> Self {
-        ReceivedEvent::Eth(event)
-    }
-}
 
 impl From<ReceivedErc20Event> for ReceivedEvent {
     fn from(event: ReceivedErc20Event) -> Self {
@@ -133,43 +127,36 @@ impl ReceivedEvent {
     /// in which event appears for this transaction.
     pub fn source(&self) -> EventSource {
         match self {
-            ReceivedEvent::Eth(evt) => evt.source(),
             ReceivedEvent::Erc20(evt) => evt.source(),
         }
     }
     pub fn from_address(&self) -> Address {
         match self {
-            ReceivedEvent::Eth(evt) => evt.from_address,
             ReceivedEvent::Erc20(evt) => evt.from_address,
         }
     }
     pub fn principal(&self) -> Principal {
         match self {
-            ReceivedEvent::Eth(evt) => evt.principal,
             ReceivedEvent::Erc20(evt) => evt.principal,
         }
     }
     pub fn block_number(&self) -> BlockNumber {
         match self {
-            ReceivedEvent::Eth(evt) => evt.block_number,
             ReceivedEvent::Erc20(evt) => evt.block_number,
         }
     }
     pub fn log_index(&self) -> LogIndex {
         match self {
-            ReceivedEvent::Eth(evt) => evt.log_index,
             ReceivedEvent::Erc20(evt) => evt.log_index,
         }
     }
     pub fn transaction_hash(&self) -> Hash {
         match self {
-            ReceivedEvent::Eth(evt) => evt.transaction_hash,
             ReceivedEvent::Erc20(evt) => evt.transaction_hash,
         }
     }
     pub fn value(&self) -> candid::Nat {
         match self {
-            ReceivedEvent::Eth(evt) => evt.value.into(),
             ReceivedEvent::Erc20(evt) => evt.value.into(),
         }
     }
@@ -178,7 +165,7 @@ impl ReceivedEvent {
 pub async fn last_received_events(
     topic: &[u8; 32],
     contract_address: Address,
-    token_contract_addresses: &[Address],
+    token_contract_address: Address,
     from: BlockNumber,
     to: BlockNumber,
 ) -> Result<(Vec<ReceivedEvent>, Vec<ReceivedEventError>), MultiCallError<Vec<LogEntry>>> {
@@ -190,18 +177,9 @@ pub async fn last_received_events(
             from, to
         ));
     }
-    let mut topics: Vec<_> = vec![FixedSizeData(*topic).into()];
+    let topics: Vec<_> = vec![FixedSizeData(*topic).into(), FixedSizeData((&token_contract_address).into()).into()];
     // We add token contract addresses as additional topics to match.
     // It has a disjunction semantics, so it will match if event matches any one of these addresses.
-    if !token_contract_addresses.is_empty() {
-        topics.push(
-            token_contract_addresses
-                .iter()
-                .map(|address| FixedSizeData(address.into()))
-                .collect::<Vec<_>>()
-                .into(),
-        )
-    }
 
     let result = read_state(EthRpcClient::from_state)
         .eth_get_logs(GetLogsParam {
@@ -321,28 +299,6 @@ impl TryFrom<LogEntry> for ReceivedEvent {
         // We either have 3 indexed topics for ETH events: (hash, from_address, principal),
         // or 4 indexed topics for ERC20 events: (hash, erc20_contract_address, from_address, principal)
         match entry.topics[0] {
-            FixedSizeData(crate::deposit::RECEIVED_ETH_EVENT_TOPIC) => {
-                if entry.topics.len() != 3 {
-                    return Err(ReceivedEventError::InvalidEventSource {
-                        source: event_source,
-                        error: EventSourceError::InvalidEvent(format!(
-                            "Expected 3 topics for ReceivedEth event, got {}",
-                            entry.topics.len()
-                        )),
-                    });
-                };
-                let from_address = parse_address(&entry.topics[1])?;
-                let principal = parse_principal(&entry.topics[2])?;
-                Ok(ReceivedEthEvent {
-                    transaction_hash,
-                    block_number,
-                    log_index,
-                    from_address,
-                    value: Wei::from_be_bytes(value_bytes),
-                    principal,
-                }
-                .into())
-            }
             FixedSizeData(crate::deposit::RECEIVED_ERC20_EVENT_TOPIC) => {
                 if entry.topics.len() != 4 {
                     return Err(ReceivedEventError::InvalidEventSource {

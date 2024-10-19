@@ -33,21 +33,18 @@ pub enum WithdrawalSearchParameter {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum WithdrawalRequest {
-    CkEth(EthWithdrawalRequest),
     CkErc20(Erc20WithdrawalRequest),
 }
 
 impl WithdrawalRequest {
     pub fn cketh_ledger_burn_index(&self) -> LedgerBurnIndex {
         match self {
-            WithdrawalRequest::CkEth(request) => request.ledger_burn_index,
             WithdrawalRequest::CkErc20(request) => request.cketh_ledger_burn_index,
         }
     }
 
     pub fn created_at(&self) -> Option<u64> {
         match self {
-            WithdrawalRequest::CkEth(request) => request.created_at,
             WithdrawalRequest::CkErc20(request) => Some(request.created_at),
         }
     }
@@ -55,7 +52,6 @@ impl WithdrawalRequest {
     /// Address to which the funds are to be sent to.
     pub fn payee(&self) -> Address {
         match self {
-            WithdrawalRequest::CkEth(request) => request.destination,
             WithdrawalRequest::CkErc20(request) => request.destination,
         }
     }
@@ -63,28 +59,24 @@ impl WithdrawalRequest {
     /// Address to which the transaction is to be sent to.
     pub fn destination(&self) -> Address {
         match self {
-            WithdrawalRequest::CkEth(request) => request.destination,
             WithdrawalRequest::CkErc20(request) => request.erc20_contract_address,
         }
     }
 
     pub fn from(&self) -> Principal {
         match self {
-            WithdrawalRequest::CkEth(request) => request.from,
             WithdrawalRequest::CkErc20(request) => request.from,
         }
     }
 
     pub fn from_subaccount(&self) -> &Option<Subaccount> {
         match self {
-            WithdrawalRequest::CkEth(request) => &request.from_subaccount,
             WithdrawalRequest::CkErc20(request) => &request.from_subaccount,
         }
     }
 
     pub fn into_accepted_withdrawal_request_event(self) -> EventType {
         match self {
-            WithdrawalRequest::CkEth(request) => EventType::AcceptedEthWithdrawalRequest(request),
             WithdrawalRequest::CkErc20(request) => {
                 EventType::AcceptedErc20WithdrawalRequest(request)
             }
@@ -100,12 +92,6 @@ impl WithdrawalRequest {
                 &self.from() == owner && self.from_subaccount() == &subaccount.map(Subaccount)
             }
         }
-    }
-}
-
-impl From<EthWithdrawalRequest> for WithdrawalRequest {
-    fn from(value: EthWithdrawalRequest) -> Self {
-        WithdrawalRequest::CkEth(value)
     }
 }
 
@@ -197,9 +183,6 @@ pub enum ReimbursementIndex {
 impl From<&WithdrawalRequest> for ReimbursementIndex {
     fn from(value: &WithdrawalRequest) -> Self {
         match value {
-            WithdrawalRequest::CkEth(request) => ReimbursementIndex::CkEth {
-                ledger_burn_index: request.ledger_burn_index,
-            },
             WithdrawalRequest::CkErc20(request) => ReimbursementIndex::CkErc20 {
                 cketh_ledger_burn_index: request.cketh_ledger_burn_index,
                 ledger_id: request.ckerc20_ledger_id,
@@ -502,12 +485,6 @@ impl EthTransactions {
             "BUG: withdrawal request and transaction destination mismatch"
         );
         match &withdrawal_request {
-            WithdrawalRequest::CkEth(req) => {
-                assert!(
-                    req.withdrawal_amount > transaction.amount,
-                    "BUG: transaction amount should be the withdrawal amount deducted from transaction fees"
-                );
-            }
             WithdrawalRequest::CkErc20(_req) => {
                 assert_eq!(
                     Wei::ZERO,
@@ -526,9 +503,6 @@ impl EthTransactions {
         let transaction_request = TransactionRequest {
             transaction,
             resubmission: match &withdrawal_request {
-                WithdrawalRequest::CkEth(cketh) => ResubmissionStrategy::ReduceEthAmount {
-                    withdrawal_amount: cketh.withdrawal_amount,
-                },
                 WithdrawalRequest::CkErc20(ckerc20) => ResubmissionStrategy::GuaranteeEthAmount {
                     allowed_max_transaction_fee: ckerc20.max_transaction_fee,
                 },
@@ -708,20 +682,6 @@ impl EthTransactions {
             .expect("failed to find entry from processed_withdrawal_requests with block index: {ledger_burn_index}");
         let index = ReimbursementIndex::from(request);
         match &request {
-            WithdrawalRequest::CkEth(request) => {
-                if receipt.status == TransactionStatus::Failure {
-                    self.record_reimbursement_request(
-                        index,
-                        ReimbursementRequest {
-                            ledger_burn_index,
-                            to: request.from,
-                            to_subaccount: request.from_subaccount.clone(),
-                            reimbursed_amount: finalized_tx.transaction_amount().change_units(),
-                            transaction_hash: Some(receipt.transaction_hash),
-                        },
-                    );
-                }
-            }
             WithdrawalRequest::CkErc20(request) => {
                 if receipt.status == TransactionStatus::Failure {
                     self.record_reimbursement_request(
@@ -1108,31 +1068,6 @@ pub fn create_transaction(
         "BUG: gas limit should be non-zero"
     );
     match withdrawal_request {
-        WithdrawalRequest::CkEth(request) => {
-            let transaction_price = gas_fee_estimate.to_price(gas_limit);
-            let max_transaction_fee = transaction_price.max_transaction_fee();
-            let tx_amount = match request.withdrawal_amount.checked_sub(max_transaction_fee) {
-                Some(tx_amount) => tx_amount,
-                None => {
-                    return Err(CreateTransactionError::InsufficientTransactionFee {
-                        cketh_ledger_burn_index: request.ledger_burn_index,
-                        allowed_max_transaction_fee: request.withdrawal_amount,
-                        actual_max_transaction_fee: max_transaction_fee,
-                    });
-                }
-            };
-            Ok(Eip1559TransactionRequest {
-                chain_id: ethereum_network.chain_id(),
-                nonce,
-                max_priority_fee_per_gas: transaction_price.max_priority_fee_per_gas,
-                max_fee_per_gas: transaction_price.max_fee_per_gas,
-                gas_limit: transaction_price.gas_limit,
-                destination: request.destination,
-                amount: tx_amount,
-                data: Vec::new(),
-                access_list: Default::default(),
-            })
-        }
         WithdrawalRequest::CkErc20(request) => {
             // The transaction fee is already paid and must be at most
             // the `max_transaction_fee` in the withdrawal request, which, given a gas limit, gives us an upper bound on

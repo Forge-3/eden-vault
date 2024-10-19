@@ -46,16 +46,6 @@ pub enum LedgerBurnError {
 }
 
 impl LedgerClient {
-    pub fn cketh_ledger_from_state(state: &State) -> Self {
-        Self {
-            token_symbol: CkTokenSymbol::cketh_symbol_from_state(state),
-            client: ICRC1Client {
-                runtime: CdkRuntime,
-                ledger_canister_id: todo!()
-            },
-        }
-    }
-
     pub fn ckerc20_ledger(token: &CkErc20Token) -> Self {
         Self {
             token_symbol: token.ckerc20_token_symbol.clone(),

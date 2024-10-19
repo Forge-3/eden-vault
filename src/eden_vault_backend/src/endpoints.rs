@@ -1,5 +1,4 @@
 use crate::eth_rpc_client::responses::TransactionReceipt;
-use crate::ledger_client::LedgerBurnError;
 use crate::numeric::LedgerBurnIndex;
 use crate::state::{transactions, transactions::EthWithdrawalRequest};
 use crate::tx::{SignedEip1559TransactionRequest, TransactionPrice};
@@ -203,29 +202,6 @@ pub enum WithdrawalError {
     InsufficientAllowance { allowance: Nat },
     RecipientAddressBlocked { address: String },
     TemporarilyUnavailable(String),
-}
-
-impl From<LedgerBurnError> for WithdrawalError {
-    fn from(error: LedgerBurnError) -> Self {
-        match error {
-            LedgerBurnError::TemporarilyUnavailable { message, .. } => {
-                Self::TemporarilyUnavailable(message)
-            }
-            LedgerBurnError::InsufficientFunds { balance, .. } => {
-                Self::InsufficientFunds { balance }
-            }
-            LedgerBurnError::InsufficientAllowance { allowance, .. } => {
-                Self::InsufficientAllowance { allowance }
-            }
-            LedgerBurnError::AmountTooLow {
-                minimum_burn_amount,
-                failed_burn_amount,
-                ledger,
-            } => {
-                panic!("BUG: withdrawal amount {failed_burn_amount} on the ckETH ledger {ledger:?} should always be higher than the ledger transaction fee {minimum_burn_amount}")
-            }
-        }
-    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, CandidType, Deserialize)]

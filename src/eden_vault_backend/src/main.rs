@@ -548,9 +548,6 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
 
     fn map_reimbursement_index(index: ReimbursementIndex) -> CandidReimbursementIndex {
         match index {
-            ReimbursementIndex::CkEth { ledger_burn_index } => CandidReimbursementIndex::CkEth {
-                ledger_burn_index: ledger_burn_index.get().into(),
-            },
             ReimbursementIndex::CkErc20 {
                 cketh_ledger_burn_index,
                 ledger_id,
@@ -767,7 +764,6 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                 },
                 EventType::MintedCkErc20 {
                     event_source,
-                    mint_block_index,
                     ckerc20_token_symbol,
                     erc20_contract_address,
                 } => EP::MintedCkErc20 {
