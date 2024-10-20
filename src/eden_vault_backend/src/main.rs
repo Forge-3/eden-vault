@@ -31,7 +31,6 @@ use eden_vault_backend::state::{
 use eden_vault_backend::tx::lazy_refresh_gas_fee_estimate;
 use eden_vault_backend::withdraw::{
     process_reimbursement, process_retrieve_eth_requests, CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
-    CKETH_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
 };
 use eden_vault_backend::{endpoints, erc20};
 use eden_vault_backend::{
@@ -342,7 +341,6 @@ async fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<Withdraw
 async fn withdraw_erc20(
     WithdrawErc20Arg {
         amount,
-        ckerc20_ledger_id,
         recipient,
     }: WithdrawErc20Arg,
 ) -> Result<RetrieveErc20Request, WithdrawErc20Error> {
@@ -365,114 +363,42 @@ async fn withdraw_erc20(
     let ckerc20_withdrawal_amount =
         Erc20Value::try_from(amount).expect("ERROR: failed to convert Nat to u256");
 
-    let ckerc20_token = read_state(|s| s.find_ck_erc20_token_by_ledger_id(&ckerc20_ledger_id))
-        .ok_or_else(|| {
-            let supported_ckerc20_tokens: BTreeSet<_> = read_state(|s| {
-                s.supported_ck_erc20_tokens()
-                    .map(|token| token.into())
-                    .collect()
-            });
-            WithdrawErc20Error::TokenNotSupported {
-                supported_tokens: Vec::from_iter(supported_ckerc20_tokens),
-            }
-        })?;
-    let cketh_ledger = read_state(LedgerClient::cketh_ledger_from_state);
+    // TODO add withdraw fee
+    
+    
+    log!(
+        INFO,
+        "[withdraw_erc20]: burning {} {}",
+        ckerc20_withdrawal_amount,
+        ckerc20_token.ckerc20_token_symbol
+    );
+    mutate_state(|s| {
+        s.erc20_balances.erc20_sub(caller.into(), ckerc20_withdrawal_amount);
+    });
+
     let erc20_tx_fee = estimate_erc20_transaction_fee().await.ok_or_else(|| {
         WithdrawErc20Error::TemporarilyUnavailable("Failed to retrieve current gas fee".to_string())
     })?;
-    let now = ic_cdk::api::time();
-    log!(INFO, "[withdraw_erc20]: burning {:?} ckETH", erc20_tx_fee);
-    match cketh_ledger
-        .burn_from(
-            caller.into(),
-            erc20_tx_fee,
-            BurnMemo::Erc20GasFee {
-                ckerc20_token_symbol: ckerc20_token.ckerc20_token_symbol.clone(),
-                ckerc20_withdrawal_amount,
-                to_address: destination,
-            },
-        )
-        .await
-    {
-        Ok(cketh_ledger_burn_index) => {
-            log!(
-                INFO,
-                "[withdraw_erc20]: burning {} {}",
-                ckerc20_withdrawal_amount,
-                ckerc20_token.ckerc20_token_symbol
-            );
-            match LedgerClient::ckerc20_ledger(&ckerc20_token)
-                .burn_from(
-                    caller.into(),
-                    ckerc20_withdrawal_amount,
-                    BurnMemo::Erc20Convert {
-                        ckerc20_withdrawal_id: cketh_ledger_burn_index.get(),
-                        to_address: destination,
-                    },
-                )
-                .await
-            {
-                Ok(ckerc20_ledger_burn_index) => {
-                    let withdrawal_request = Erc20WithdrawalRequest {
-                        max_transaction_fee: erc20_tx_fee,
-                        withdrawal_amount: ckerc20_withdrawal_amount,
-                        destination,
-                        cketh_ledger_burn_index,
-                        ckerc20_ledger_id: ckerc20_token.ckerc20_ledger_id,
-                        ckerc20_ledger_burn_index,
-                        erc20_contract_address: ckerc20_token.erc20_contract_address,
-                        from: caller,
-                        from_subaccount: None,
-                        created_at: now,
-                    };
-                    log!(
-                        INFO,
-                        "[withdraw_erc20]: queuing withdrawal request {:?}",
-                        withdrawal_request
-                    );
-                    mutate_state(|s| {
-                        process_event(
-                            s,
-                            EventType::AcceptedErc20WithdrawalRequest(withdrawal_request.clone()),
-                        );
-                    });
-                    Ok(RetrieveErc20Request::from(withdrawal_request))
-                }
-                Err(ckerc20_burn_error) => {
-                    let reimbursed_amount = match &ckerc20_burn_error {
-                        LedgerBurnError::TemporarilyUnavailable { .. } => erc20_tx_fee, //don't penalize user in case of an error outside of their control
-                        LedgerBurnError::InsufficientFunds { .. }
-                        | LedgerBurnError::AmountTooLow { .. }
-                        | LedgerBurnError::InsufficientAllowance { .. } => erc20_tx_fee
-                            .checked_sub(CKETH_LEDGER_TRANSACTION_FEE)
-                            .unwrap_or(Wei::ZERO),
-                    };
-                    if reimbursed_amount > Wei::ZERO {
-                        let reimbursement_request = ReimbursementRequest {
-                            ledger_burn_index: cketh_ledger_burn_index,
-                            reimbursed_amount: reimbursed_amount.change_units(),
-                            to: caller,
-                            to_subaccount: None,
-                            transaction_hash: None,
-                        };
-                        mutate_state(|s| {
-                            process_event(
-                                s,
-                                EventType::FailedErc20WithdrawalRequest(reimbursement_request),
-                            );
-                        });
-                    }
-                    Err(WithdrawErc20Error::CkErc20LedgerError {
-                        cketh_block_index: Nat::from(cketh_ledger_burn_index.get()),
-                        error: ckerc20_burn_error.into(),
-                    })
-                }
-            }
-        }
-        Err(cketh_burn_error) => Err(WithdrawErc20Error::CkEthLedgerError {
-            error: cketh_burn_error.into(),
-        }),
-    }
+    let withdrawal_request = Erc20WithdrawalRequest {
+        max_transaction_fee: erc20_tx_fee,
+        withdrawal_amount: ckerc20_withdrawal_amount,
+        destination,
+        from: caller,
+        from_subaccount: None,
+        created_at: now,
+    };
+    log!(
+        INFO,
+        "[withdraw_erc20]: queuing withdrawal request {:?}",
+        withdrawal_request
+    );
+    mutate_state(|s| {
+        process_event(
+            s,
+            EventType::AcceptedErc20WithdrawalRequest(withdrawal_request.clone()),
+        );
+    });
+    Ok(RetrieveErc20Request::from(withdrawal_request))
 }
 
 async fn estimate_erc20_transaction_fee() -> Option<Wei> {
@@ -520,7 +446,7 @@ async fn get_canister_status() -> ic_cdk::api::management_canister::main::Canist
     .expect("failed to fetch canister status")
     .0
 }
-
+/* 
 #[query]
 fn get_events(arg: GetEventsArg) -> GetEventsResult {
     use eden_vault_backend::endpoints::events::{
@@ -806,7 +732,7 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
         total_event_count: storage::total_event_count(),
     }
 }
-
+*/
 /*
 #[query(hidden = true)]
 fn http_request(req: HttpRequest) -> HttpResponse {

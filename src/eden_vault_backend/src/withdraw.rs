@@ -26,7 +26,6 @@ const WITHDRAWAL_REQUESTS_BATCH_SIZE: usize = 5;
 const TRANSACTIONS_TO_SIGN_BATCH_SIZE: usize = 5;
 const TRANSACTIONS_TO_SEND_BATCH_SIZE: usize = 5;
 
-pub const CKETH_WITHDRAWAL_TRANSACTION_GAS_LIMIT: GasAmount = GasAmount::new(21_000);
 pub const CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT: GasAmount = GasAmount::new(65_000);
 
 pub async fn process_reimbursement() {

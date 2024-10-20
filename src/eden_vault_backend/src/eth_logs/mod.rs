@@ -52,7 +52,6 @@ pub enum ReceivedEvent {
     Erc20(ReceivedErc20Event),
 }
 
-
 impl From<ReceivedErc20Event> for ReceivedEvent {
     fn from(event: ReceivedErc20Event) -> Self {
         ReceivedEvent::Erc20(event)
@@ -158,6 +157,11 @@ impl ReceivedEvent {
     pub fn value(&self) -> candid::Nat {
         match self {
             ReceivedEvent::Erc20(evt) => evt.value.into(),
+        }
+    }
+    pub fn raw_value(&self) -> Erc20Value {
+        match self {
+            ReceivedEvent::Erc20(evt) => evt.value,
         }
     }
 }

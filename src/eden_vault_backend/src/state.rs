@@ -11,7 +11,7 @@ use crate::numeric::{
 };
 use crate::state::transactions::{Erc20WithdrawalRequest, TransactionCallData, WithdrawalRequest};
 use crate::tx::GasFeeEstimate;
-use candid::Principal;
+use candid::{Nat, Principal};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::ecdsa::EcdsaPublicKeyResponse;
 use ic_crypto_secp256k1::PublicKey;
@@ -237,6 +237,8 @@ impl State {
     fn record_successful_mint(
         &mut self,
         source: EventSource,
+        principal: Principal,
+        amount: Erc20Value,
     ) {
         assert!(
             !self.invalid_events.contains_key(&source),
@@ -246,8 +248,6 @@ impl State {
             Some(event) => event,
             None => panic!("attempted to mint ckETH for an unknown event {source:?}"),
         };
-        // TODO: insert or mut
-        self.erc20_balances.principal_balance_by_erc20_contract
         assert_eq!(
             self.minted_events.insert(
                 source,
@@ -258,15 +258,10 @@ impl State {
             None,
             "attempted to mint ckETH twice for the same event {source:?}"
         );
+        self.erc20_balances.erc20_add(principal, amount);
     }
 
     pub fn record_erc20_withdrawal_request(&mut self, request: Erc20WithdrawalRequest) {
-        assert!(
-            self.ckerc20_tokens.0
-                == request.erc20_contract_address,
-            "BUG: unsupported ERC-20 token {}",
-            request.erc20_contract_address
-        );
         self.eth_transactions.record_withdrawal_request(request);
     }
 
@@ -353,7 +348,7 @@ impl State {
 
     pub fn erc20_balances_by_token_symbol(&self) -> BTreeMap<&CkTokenSymbol, &Erc20Value> {
         self.erc20_balances
-            .principal_balance_by_erc20_contract
+            .principal_balance_by_erc20
             .iter()
             .map(|(_, balance)| {
                 let symbol = &self
@@ -612,21 +607,29 @@ impl EthBalance {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Erc20Balances {
-    principal_balance_by_erc20_contract: BTreeMap<Principal, Erc20Value>,
+    erc20_balance: Erc20Value,
+    principal_balance_by_erc20: BTreeMap<Principal, Erc20Value>,
 }
 
 impl Erc20Balances {
+    pub fn default() -> Self {
+        Self {
+            erc20_balance: 0u8.into(),
+            principal_balance_by_erc20: BTreeMap::default()
+        }
+    }
+    
     pub fn balance_of(&self, principal: &Principal) -> Erc20Value {
         *self
-            .principal_balance_by_erc20_contract
+            .principal_balance_by_erc20
             .get(principal)
             .unwrap_or(&Erc20Value::ZERO)
     }
 
     pub fn erc20_add(&mut self, erc20_contract: Principal, deposit: Erc20Value) {
-        match self.principal_balance_by_erc20_contract.get(&erc20_contract) {
+        match self.principal_balance_by_erc20.get(&erc20_contract) {
             Some(previous_value) => {
                 let new_value = previous_value.checked_add(deposit).unwrap_or_else(|| {
                     panic!(
@@ -634,11 +637,11 @@ impl Erc20Balances {
                         deposit, previous_value
                     )
                 });
-                self.principal_balance_by_erc20_contract
+                self.principal_balance_by_erc20
                     .insert(erc20_contract, new_value);
             }
             None => {
-                self.principal_balance_by_erc20_contract
+                self.principal_balance_by_erc20
                     .insert(erc20_contract, deposit);
             }
         }
@@ -646,7 +649,7 @@ impl Erc20Balances {
 
     pub fn erc20_sub(&mut self, erc20_contract: Principal, withdrawal_amount: Erc20Value) {
         let previous_value = self
-            .principal_balance_by_erc20_contract
+            .principal_balance_by_erc20
             .get(&erc20_contract)
             .expect("BUG: Cannot subtract from a missing ERC-20 balance");
         let new_value = previous_value
@@ -657,7 +660,7 @@ impl Erc20Balances {
                     withdrawal_amount, previous_value
                 )
             });
-        self.principal_balance_by_erc20_contract
+        self.principal_balance_by_erc20
             .insert(erc20_contract, new_value);
     }
 }

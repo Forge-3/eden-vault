@@ -27,7 +27,7 @@ async fn mint() {
     };
 
     let events = read_state(|s| (s.events_to_mint()));
-
+    
     for event in events {
         // Ensure that even if we were to panic in the callback, after having contacted the ledger to mint the tokens,
         // this event will not be processed again.
@@ -49,13 +49,18 @@ async fn mint() {
                 })
             }
         };
-        // TODO: add value of tokens saver
+
+        let principal = event.principal();
+        let amount = event.raw_value();
+
         mutate_state(|s| {
             process_event(
                 s,
                 match &event {
                       ReceivedEvent::Erc20(event) => EventType::MintedCkErc20 {
                         event_source: event.source(),
+                        principal,
+                        amount,
                     },
                 },
             )

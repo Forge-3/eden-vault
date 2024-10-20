@@ -4,23 +4,7 @@ use candid::{CandidType, Deserialize, Nat, Principal};
 #[derive(CandidType, Deserialize)]
 pub struct WithdrawErc20Arg {
     pub amount: Nat,
-    pub ckerc20_ledger_id: Principal,
     pub recipient: String,
-}
-
-#[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]
-pub struct RetrieveErc20Request {
-    pub cketh_block_index: Nat,
-    pub ckerc20_block_index: Nat,
-}
-
-impl From<Erc20WithdrawalRequest> for RetrieveErc20Request {
-    fn from(value: Erc20WithdrawalRequest) -> Self {
-        Self {
-            cketh_block_index: candid::Nat::from(value.cketh_ledger_burn_index.get()),
-            ckerc20_block_index: candid::Nat::from(value.ckerc20_ledger_burn_index.get()),
-        }
-    }
 }
 
 #[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]

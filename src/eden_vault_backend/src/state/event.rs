@@ -1,14 +1,15 @@
+use crate::checked_amount::CheckedAmountOf;
 use crate::erc20::CkErc20Token;
 use crate::eth_logs::{EventSource, ReceivedErc20Event, ReceivedEthEvent, ReceivedEvent};
 use crate::eth_rpc_client::responses::TransactionReceipt;
 use crate::lifecycle::{init::InitArg, upgrade::UpgradeArg};
-use crate::numeric::{BlockNumber, LedgerBurnIndex, LedgerMintIndex};
+use crate::numeric::{BlockNumber, Erc20Tag, Erc20Value, LedgerBurnIndex, LedgerMintIndex};
 use crate::state::transactions::{
     Erc20WithdrawalRequest, EthWithdrawalRequest, Reimbursed, ReimbursementIndex,
     ReimbursementRequest,
 };
 use crate::tx::{Eip1559TransactionRequest, SignedEip1559TransactionRequest};
-use candid::Principal;
+use candid::{Nat, Principal};
 use ic_ethereum_types::Address;
 use minicbor::{Decode, Encode};
 
@@ -92,6 +93,10 @@ pub enum EventType {
         /// The unique identifier of the deposit on the Ethereum network.
         #[n(0)]
         event_source: EventSource,
+        #[cbor(n(1), with = "crate::cbor::principal")]
+        principal: Principal,
+        #[n(2)]
+        amount: Erc20Value,
     },
     /// The minter processed the helper smart contract logs up to the specified height.
     #[n(18)]
