@@ -6,9 +6,7 @@ use crate::eth_rpc_client::responses::{TransactionReceipt, TransactionStatus};
 use crate::lifecycle::upgrade::UpgradeArg;
 use crate::lifecycle::EthereumNetwork;
 use crate::logs::DEBUG;
-use crate::numeric::{
-    BlockNumber, Erc20Value, LedgerBurnIndex, TransactionNonce, Wei,
-};
+use crate::numeric::{BlockNumber, Erc20Value, LedgerBurnIndex, TransactionNonce, Wei};
 use crate::state::transactions::{Erc20WithdrawalRequest, TransactionCallData, WithdrawalRequest};
 use crate::tx::GasFeeEstimate;
 use candid::{Nat, Principal};
@@ -153,7 +151,7 @@ impl State {
         let cketh_ledger_transfer_fee = match self.ethereum_network {
             EthereumNetwork::Mainnet => Wei::new(2_000_000_000_000),
             EthereumNetwork::Sepolia => Wei::new(10_000_000_000),
-            EthereumNetwork::Local => Wei::new(1_000_000_000)
+            EthereumNetwork::Local => Wei::new(1_000_000_000),
         };
         if self.cketh_minimum_withdrawal_amount < cketh_ledger_transfer_fee {
             return Err(InvalidStateError::InvalidMinimumWithdrawalAmount(
@@ -249,16 +247,12 @@ impl State {
             None => panic!("attempted to mint ckETH for an unknown event {source:?}"),
         };
         assert_eq!(
-            self.minted_events.insert(
-                source,
-                MintedEvent {
-                    deposit_event
-                },
-            ),
+            self.minted_events
+                .insert(source, MintedEvent { deposit_event },),
             None,
             "attempted to mint ckETH twice for the same event {source:?}"
         );
-        self.erc20_balances.erc20_add(principal, amount);
+        self.erc20_balances.principal_erc20_add(principal, amount);
     }
 
     pub fn record_erc20_withdrawal_request(&mut self, request: Erc20WithdrawalRequest) {
@@ -287,7 +281,7 @@ impl State {
         match event {
             ReceivedEvent::Erc20(event) => self
                 .erc20_balances
-                .erc20_add(event.principal, event.value),
+                .erc20_add(event.value),
         };
     }
 
@@ -328,7 +322,8 @@ impl State {
                 tx.transaction_data(),
             )
             .expect("BUG: failed to decode transaction data from transaction issued by minter");
-            self.erc20_balances.erc20_sub(*tx.destination(), value);
+            self.erc20_balances
+                .erc20_sub(value);
         }
     }
 
@@ -351,8 +346,7 @@ impl State {
             .principal_balance_by_erc20
             .iter()
             .map(|(_, balance)| {
-                let symbol = &self
-                    .ckerc20_tokens.1;
+                let symbol = &self.ckerc20_tokens.1;
                 (symbol, balance)
             })
             .collect()
@@ -617,10 +611,10 @@ impl Erc20Balances {
     pub fn default() -> Self {
         Self {
             erc20_balance: 0u8.into(),
-            principal_balance_by_erc20: BTreeMap::default()
+            principal_balance_by_erc20: BTreeMap::default(),
         }
     }
-    
+
     pub fn balance_of(&self, principal: &Principal) -> Erc20Value {
         *self
             .principal_balance_by_erc20
@@ -628,7 +622,7 @@ impl Erc20Balances {
             .unwrap_or(&Erc20Value::ZERO)
     }
 
-    pub fn erc20_add(&mut self, erc20_contract: Principal, deposit: Erc20Value) {
+    pub fn principal_erc20_add(&mut self, erc20_contract: Principal, deposit: Erc20Value) {
         match self.principal_balance_by_erc20.get(&erc20_contract) {
             Some(previous_value) => {
                 let new_value = previous_value.checked_add(deposit).unwrap_or_else(|| {
@@ -647,7 +641,11 @@ impl Erc20Balances {
         }
     }
 
-    pub fn erc20_sub(&mut self, erc20_contract: Principal, withdrawal_amount: Erc20Value) {
+    pub fn principal_erc20_sub(
+        &mut self,
+        erc20_contract: Principal,
+        withdrawal_amount: Erc20Value,
+    ) {
         let previous_value = self
             .principal_balance_by_erc20
             .get(&erc20_contract)
@@ -663,6 +661,31 @@ impl Erc20Balances {
         self.principal_balance_by_erc20
             .insert(erc20_contract, new_value);
     }
+
+    pub fn erc20_add(&mut self, deposit: Erc20Value) {
+        self.erc20_balance = self
+            .erc20_balance
+            .checked_add(deposit)
+            .unwrap_or_else(|| {
+                panic!(
+                    "BUG: overflow when adding {} to {}",
+                    deposit, self.erc20_balance
+                )
+            });
+    }
+
+    pub fn erc20_sub(&mut self, withdrawal_amount: Erc20Value) {
+        self.erc20_balance = self
+            .erc20_balance
+            .checked_sub(withdrawal_amount)
+            .unwrap_or_else(|| {
+                panic!(
+                    "BUG: underflow when subtracting {} from {}",
+                    withdrawal_amount, self.erc20_balance
+                )
+            });
+    }
+
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, EnumIter)]

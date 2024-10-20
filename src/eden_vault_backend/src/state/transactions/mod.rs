@@ -37,12 +37,6 @@ pub enum WithdrawalRequest {
 }
 
 impl WithdrawalRequest {
-    pub fn cketh_ledger_burn_index(&self) -> LedgerBurnIndex {
-        match self {
-            WithdrawalRequest::CkErc20(request) => request.cketh_ledger_burn_index,
-        }
-    }
-
     pub fn created_at(&self) -> Option<u64> {
         match self {
             WithdrawalRequest::CkErc20(request) => Some(request.created_at),
@@ -53,13 +47,6 @@ impl WithdrawalRequest {
     pub fn payee(&self) -> Address {
         match self {
             WithdrawalRequest::CkErc20(request) => request.destination,
-        }
-    }
-
-    /// Address to which the transaction is to be sent to.
-    pub fn destination(&self) -> Address {
-        match self {
-            WithdrawalRequest::CkErc20(request) => request.erc20_contract_address,
         }
     }
 
@@ -341,7 +328,6 @@ pub struct EthTransactions {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum CreateTransactionError {
     InsufficientTransactionFee {
-        cketh_ledger_burn_index: LedgerBurnIndex,
         allowed_max_transaction_fee: Wei,
         actual_max_transaction_fee: Wei,
     },
@@ -1064,7 +1050,6 @@ pub fn create_transaction(
             let actual_min_max_fee_per_gas = gas_fee_estimate.min_max_fee_per_gas();
             if actual_min_max_fee_per_gas > request_max_fee_per_gas {
                 return Err(CreateTransactionError::InsufficientTransactionFee {
-                    cketh_ledger_burn_index: request.cketh_ledger_burn_index,
                     allowed_max_transaction_fee: request.max_transaction_fee,
                     actual_max_transaction_fee: actual_min_max_fee_per_gas
                         .transaction_cost(gas_limit)

@@ -339,10 +339,7 @@ async fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<Withdraw
 
 #[update]
 async fn withdraw_erc20(
-    WithdrawErc20Arg {
-        amount,
-        recipient,
-    }: WithdrawErc20Arg,
+    WithdrawErc20Arg { amount, recipient }: WithdrawErc20Arg,
 ) -> Result<RetrieveErc20Request, WithdrawErc20Error> {
     let caller = validate_caller_not_anonymous();
     let _guard = retrieve_withdraw_guard(caller).unwrap_or_else(|e| {
@@ -364,8 +361,7 @@ async fn withdraw_erc20(
         Erc20Value::try_from(amount).expect("ERROR: failed to convert Nat to u256");
 
     // TODO add withdraw fee
-    
-    
+
     log!(
         INFO,
         "[withdraw_erc20]: burning {} {}",
@@ -373,7 +369,11 @@ async fn withdraw_erc20(
         ckerc20_token.ckerc20_token_symbol
     );
     mutate_state(|s| {
-        s.erc20_balances.erc20_sub(caller.into(), ckerc20_withdrawal_amount);
+        s.erc20_balances
+            .principal_erc20_sub(
+                caller.into(),
+                ckerc20_withdrawal_amount,
+            );
     });
 
     let erc20_tx_fee = estimate_erc20_transaction_fee().await.ok_or_else(|| {
@@ -418,7 +418,6 @@ fn is_address_blocked(address_string: String) -> bool {
     eden_vault_backend::blocklist::is_blocked(&address)
 }
 
-
 #[update]
 async fn add_ckerc20_token(erc20_token: AddCkErc20Token) {
     // let orchestrator_id = read_state(|s| s.ledger_suite_orchestrator_id)
@@ -434,7 +433,6 @@ async fn add_ckerc20_token(erc20_token: AddCkErc20Token) {
     mutate_state(|s| process_event(s, EventType::AddedCkErc20Token(ckerc20_token)));
 }
 
-
 #[update]
 async fn get_canister_status() -> ic_cdk::api::management_canister::main::CanisterStatusResponse {
     ic_cdk::api::management_canister::main::canister_status(
@@ -446,7 +444,7 @@ async fn get_canister_status() -> ic_cdk::api::management_canister::main::Canist
     .expect("failed to fetch canister status")
     .0
 }
-/* 
+/*
 #[query]
 fn get_events(arg: GetEventsArg) -> GetEventsResult {
     use eden_vault_backend::endpoints::events::{
