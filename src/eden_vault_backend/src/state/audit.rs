@@ -3,7 +3,6 @@ mod tests;
 
 pub use super::event::{Event, EventType};
 use super::State;
-use crate::erc20::CkTokenSymbol;
 use crate::state::transactions::{Reimbursed, ReimbursementIndex};
 use crate::storage::{record_event, with_event_iter};
 
@@ -31,13 +30,9 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         }
         EventType::MintedCkErc20 {
             event_source,
-            ckerc20_token_symbol,
-            erc20_contract_address,
         } => {
             state.record_successful_mint(
                 *event_source,
-                ckerc20_token_symbol,
-                Some(*erc20_contract_address),
             );
         }
         EventType::SyncedToBlock { block_number } => {

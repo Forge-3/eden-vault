@@ -1,14 +1,13 @@
 use crate::address::ecdsa_public_key_to_address;
-use crate::erc20::{CkErc20Token, CkTokenSymbol};
+use crate::erc20::CkTokenSymbol;
 use crate::eth_logs::{EventSource, ReceivedEvent};
 use crate::eth_rpc::BlockTag;
 use crate::eth_rpc_client::responses::{TransactionReceipt, TransactionStatus};
 use crate::lifecycle::upgrade::UpgradeArg;
 use crate::lifecycle::EthereumNetwork;
 use crate::logs::DEBUG;
-use crate::map::DedupMultiKeyMap;
 use crate::numeric::{
-    BlockNumber, Erc20Value, LedgerBurnIndex, LedgerMintIndex, TransactionNonce, Wei,
+    BlockNumber, Erc20Value, LedgerBurnIndex, TransactionNonce, Wei,
 };
 use crate::state::transactions::{Erc20WithdrawalRequest, TransactionCallData, WithdrawalRequest};
 use crate::tx::GasFeeEstimate;
@@ -37,8 +36,6 @@ thread_local! {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct MintedEvent {
     pub deposit_event: ReceivedEvent,
-    pub token_symbol: String,
-    pub erc20_contract_address: Option<Address>,
 }
 
 impl MintedEvent {
@@ -240,8 +237,6 @@ impl State {
     fn record_successful_mint(
         &mut self,
         source: EventSource,
-        token_symbol: &str,
-        erc20_contract_address: Option<Address>,
     ) {
         assert!(
             !self.invalid_events.contains_key(&source),
@@ -251,13 +246,13 @@ impl State {
             Some(event) => event,
             None => panic!("attempted to mint ckETH for an unknown event {source:?}"),
         };
+        // TODO: insert or mut
+        self.erc20_balances.principal_balance_by_erc20_contract
         assert_eq!(
             self.minted_events.insert(
                 source,
                 MintedEvent {
-                    deposit_event,
-                    token_symbol: token_symbol.to_string(),
-                    erc20_contract_address,
+                    deposit_event
                 },
             ),
             None,
@@ -297,7 +292,7 @@ impl State {
         match event {
             ReceivedEvent::Erc20(event) => self
                 .erc20_balances
-                .erc20_add(event.erc20_contract_address, event.value),
+                .erc20_add(event.principal, event.value),
         };
     }
 
@@ -358,7 +353,7 @@ impl State {
 
     pub fn erc20_balances_by_token_symbol(&self) -> BTreeMap<&CkTokenSymbol, &Erc20Value> {
         self.erc20_balances
-            .balance_by_erc20_contract
+            .principal_balance_by_erc20_contract
             .iter()
             .map(|(_, balance)| {
                 let symbol = &self
@@ -619,19 +614,19 @@ impl EthBalance {
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct Erc20Balances {
-    balance_by_erc20_contract: BTreeMap<Address, Erc20Value>,
+    principal_balance_by_erc20_contract: BTreeMap<Principal, Erc20Value>,
 }
 
 impl Erc20Balances {
-    pub fn balance_of(&self, erc20_contract: &Address) -> Erc20Value {
+    pub fn balance_of(&self, principal: &Principal) -> Erc20Value {
         *self
-            .balance_by_erc20_contract
-            .get(erc20_contract)
+            .principal_balance_by_erc20_contract
+            .get(principal)
             .unwrap_or(&Erc20Value::ZERO)
     }
 
-    pub fn erc20_add(&mut self, erc20_contract: Address, deposit: Erc20Value) {
-        match self.balance_by_erc20_contract.get(&erc20_contract) {
+    pub fn erc20_add(&mut self, erc20_contract: Principal, deposit: Erc20Value) {
+        match self.principal_balance_by_erc20_contract.get(&erc20_contract) {
             Some(previous_value) => {
                 let new_value = previous_value.checked_add(deposit).unwrap_or_else(|| {
                     panic!(
@@ -639,19 +634,19 @@ impl Erc20Balances {
                         deposit, previous_value
                     )
                 });
-                self.balance_by_erc20_contract
+                self.principal_balance_by_erc20_contract
                     .insert(erc20_contract, new_value);
             }
             None => {
-                self.balance_by_erc20_contract
+                self.principal_balance_by_erc20_contract
                     .insert(erc20_contract, deposit);
             }
         }
     }
 
-    pub fn erc20_sub(&mut self, erc20_contract: Address, withdrawal_amount: Erc20Value) {
+    pub fn erc20_sub(&mut self, erc20_contract: Principal, withdrawal_amount: Erc20Value) {
         let previous_value = self
-            .balance_by_erc20_contract
+            .principal_balance_by_erc20_contract
             .get(&erc20_contract)
             .expect("BUG: Cannot subtract from a missing ERC-20 balance");
         let new_value = previous_value
@@ -662,7 +657,7 @@ impl Erc20Balances {
                     withdrawal_amount, previous_value
                 )
             });
-        self.balance_by_erc20_contract
+        self.principal_balance_by_erc20_contract
             .insert(erc20_contract, new_value);
     }
 }

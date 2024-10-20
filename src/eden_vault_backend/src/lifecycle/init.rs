@@ -10,6 +10,7 @@ use candid::types::principal::Principal;
 use candid::{CandidType, Deserialize};
 use ic_ethereum_types::Address;
 use minicbor::{Decode, Encode};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Eq, PartialEq, Debug, CandidType, Decode, Deserialize, Encode)]
 pub struct InitArg {
@@ -87,6 +88,7 @@ impl TryFrom<InitArg> for State {
             .map_err(|e| InvalidStateError::InvalidCkTokenSymbol(format!("ERROR: {}", e)))?;
 
         let state = Self {
+            admin,
             ethereum_network,
             ecdsa_key_name,
             erc20_helper_contract_address: eth_helper_contract_address,
@@ -110,7 +112,6 @@ impl TryFrom<InitArg> for State {
             evm_rpc_id: None,
             ckerc20_tokens: (ckerc20_token_address, ckerc20_token_symbol),
             erc20_balances: Default::default(),
-            admin,
         };
         state.validate_config()?;
         Ok(state)

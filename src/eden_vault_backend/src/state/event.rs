@@ -92,10 +92,6 @@ pub enum EventType {
         /// The unique identifier of the deposit on the Ethereum network.
         #[n(0)]
         event_source: EventSource,
-        #[n(2)]
-        ckerc20_token_symbol: String,
-        #[n(3)]
-        erc20_contract_address: Address,
     },
     /// The minter processed the helper smart contract logs up to the specified height.
     #[n(18)]

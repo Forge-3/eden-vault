@@ -44,13 +44,8 @@ async fn mint() {
         let token_symbol = match &event {
             ReceivedEvent::Erc20(event) => {
                 read_state(|s| {
-                    if s.ckerc20_tokens.0 == event.erc20_contract_address {
-                        s.ckerc20_tokens.1.to_string()
-                    } else{
-                        panic!(
-                            "Failed to mint ckERC20: {event:?} Unsupported ERC20 contract address. (This should have already been filtered out by process_event)"
-                        )
-                    }
+                    assert!(s.ckerc20_tokens.0 == event.erc20_contract_address, "Failed to mint ckERC20: {event:?} Unsupported ERC20 contract address. (This should have already been filtered out by process_event)");
+                    s.ckerc20_tokens.1.to_string()
                 })
             }
         };
@@ -61,8 +56,6 @@ async fn mint() {
                 match &event {
                       ReceivedEvent::Erc20(event) => EventType::MintedCkErc20 {
                         event_source: event.source(),
-                        erc20_contract_address: event.erc20_contract_address,
-                        ckerc20_token_symbol: token_symbol.clone(),
                     },
                 },
             )
@@ -75,14 +68,6 @@ async fn mint() {
         );
         // minting succeeded, defuse guard
         ScopeGuard::into_inner(prevent_double_minting_guard);
-    }
-
-    if error_count > 0 {
-        log!(
-            INFO,
-            "Failed to mint {error_count} events, rescheduling the minting"
-        );
-        ic_cdk_timers::set_timer(crate::MINT_RETRY_DELAY, || ic_cdk::spawn(mint()));
     }
 }
 
