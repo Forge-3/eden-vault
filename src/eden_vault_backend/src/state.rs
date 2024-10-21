@@ -6,7 +6,7 @@ use crate::eth_rpc_client::responses::{TransactionReceipt, TransactionStatus};
 use crate::lifecycle::upgrade::UpgradeArg;
 use crate::lifecycle::EthereumNetwork;
 use crate::logs::DEBUG;
-use crate::numeric::{BlockNumber, Erc20Value, LedgerBurnIndex, TransactionNonce, Wei};
+use crate::numeric::{BlockNumber, Erc20Value, TransactionNonce, Wei};
 use crate::state::transactions::{Erc20WithdrawalRequest, TransactionCallData, WithdrawalRequest};
 use crate::tx::GasFeeEstimate;
 use candid::{Nat, Principal};
@@ -135,6 +135,7 @@ impl Display for InvalidEventReason {
 }
 
 impl State {
+    //TODO make it available only for admin
     pub fn set_admin(&mut self, new_admin: Principal) {
         self.admin = new_admin;
     }
@@ -609,13 +610,16 @@ pub struct Erc20Balances {
     principal_balance_by_erc20: BTreeMap<Principal, Erc20Value>,
 }
 
-impl Erc20Balances {
-    pub fn default() -> Self {
+impl Default for Erc20Balances {
+    fn default() -> Self {
         Self {
             erc20_balance: 0u8.into(),
             principal_balance_by_erc20: BTreeMap::default(),
         }
     }
+}
+
+impl Erc20Balances {
 
     pub fn balance_of(&self, principal: &Principal) -> Erc20Value {
         *self

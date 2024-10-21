@@ -1,5 +1,4 @@
 use crate::eth_rpc_client::responses::TransactionReceipt;
-use crate::numeric::LedgerBurnIndex;
 use crate::state::{transactions, transactions::EthWithdrawalRequest};
 use crate::tx::{SignedEip1559TransactionRequest, TransactionPrice};
 use candid::{CandidType, Deserialize, Nat, Principal};
@@ -228,7 +227,7 @@ impl TryFrom<WithdrawalSearchParameter> for transactions::WithdrawalSearchParame
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, CandidType, Deserialize)]
 pub struct WithdrawalDetail {
-    pub withdrawal_id: u64,
+    pub withdrawal_id: Nat,
     pub recipient_address: String,
     pub from: Principal,
     pub from_subaccount: Option<[u8; 32]>,

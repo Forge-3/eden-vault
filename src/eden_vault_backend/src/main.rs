@@ -30,9 +30,9 @@ use eden_vault_backend::state::{
 };
 use eden_vault_backend::tx::lazy_refresh_gas_fee_estimate;
 use eden_vault_backend::withdraw::{
-    process_reimbursement, process_retrieve_eth_requests, CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
+    process_retrieve_eth_requests, CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
 };
-use eden_vault_backend::{endpoints, erc20};
+use eden_vault_backend::{checked_amount, endpoints, erc20};
 use eden_vault_backend::{
     state, storage, PROCESS_ETH_RETRIEVE_TRANSACTIONS_INTERVAL, PROCESS_REIMBURSEMENT,
     SCRAPING_ETH_LOGS_INTERVAL,
@@ -45,6 +45,7 @@ use std::collections::BTreeSet;
 use std::convert::TryFrom;
 use std::str::FromStr;
 use std::time::Duration;
+use crate::state::transactions::Subaccount;
 
 pub const SEPOLIA_TEST_CHAIN_ID: u64 = 11155111;
 pub const CKETH_LEDGER_TRANSACTION_FEE: Wei = Wei::new(2_000_000_000_000_u128);
@@ -70,9 +71,9 @@ fn setup_timers() {
     ic_cdk_timers::set_timer_interval(PROCESS_ETH_RETRIEVE_TRANSACTIONS_INTERVAL, || {
         ic_cdk::spawn(process_retrieve_eth_requests())
     });
-    ic_cdk_timers::set_timer_interval(PROCESS_REIMBURSEMENT, || {
-        ic_cdk::spawn(process_reimbursement())
-    });
+    // ic_cdk_timers::set_timer_interval(PROCESS_REIMBURSEMENT, || {
+    //     ic_cdk::spawn(process_reimbursement())
+    // });
 }
 
 #[init]
@@ -250,7 +251,7 @@ async fn withdraw_eth(
     }
 
     let client = read_state(LedgerClient::cketh_ledger_from_state);
-    let now = ic_cdk::api::time();
+    // let now = ic_cdk::api::time();
     log!(INFO, "[withdraw]: burning {:?}", amount);
     match client
         .burn_from(
@@ -293,7 +294,8 @@ async fn withdraw_eth(
 #[update]
 async fn retrieve_eth_status(block_index: u64) -> RetrieveEthStatus {
     let ledger_burn_index = LedgerBurnIndex::new(block_index);
-    read_state(|s| s.eth_transactions.transaction_status(&ledger_burn_index))
+    let ledger_burn_index_nat = Nat::from(block_index as u128);
+    read_state(|s| s.eth_transactions.transaction_status(&ledger_burn_index_nat))
 }
 
 #[query]
@@ -304,34 +306,26 @@ async fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<Withdraw
         s.eth_transactions
             .withdrawal_status(&parameter)
             .into_iter()
-            .map(|(request, status, tx)| WithdrawalDetail {
-                withdrawal_id: *request.cketh_ledger_burn_index().as_ref(),
-                recipient_address: request.payee().to_string(),
-                token_symbol: match request {
-                    CkEth(_) => CkTokenSymbol::cketh_symbol_from_state(s).to_string(),
-                    CkErc20(r) => s
-                        .ckerc20_tokens
-                        .get_alt(&r.erc20_contract_address)
-                        .unwrap()
-                        .to_string(),
-                },
-                withdrawal_amount: match request {
-                    CkEth(r) => r.withdrawal_amount.into(),
-                    CkErc20(r) => r.withdrawal_amount.into(),
-                },
-                max_transaction_fee: match (request, tx) {
-                    (CkEth(_), None) => None,
-                    (CkEth(r), Some(tx)) => {
-                        r.withdrawal_amount.checked_sub(tx.amount).map(|x| x.into())
-                    }
-                    (CkErc20(r), _) => Some(r.max_transaction_fee.into()),
-                },
-                from: request.from(),
-                from_subaccount: request
-                    .from_subaccount()
-                    .clone()
-                    .map(|subaccount| subaccount.0),
-                status,
+            .map(|(request, status, tx)| {
+                WithdrawalDetail {
+                    withdrawal_id: request.get_withdrawal_id(),
+                    recipient_address: request.payee().to_string(),
+                    token_symbol: match request {
+                        CkErc20(r) => s.ckerc20_tokens.1.to_string(),
+                    },
+                    withdrawal_amount: match request {
+                        CkErc20(r) => r.withdrawal_amount.into(),
+                    },
+                    max_transaction_fee: match (request, tx) {
+                        (CkErc20(r), _) => Some(r.max_transaction_fee.into()),
+                    },
+                    from: request.from(),
+                    from_subaccount: request
+                        .from_subaccount()
+                        .clone()
+                        .map(|subaccount| subaccount.0),
+                    status,
+                }
             })
             .collect()
     })
@@ -361,12 +355,12 @@ async fn withdraw_erc20(
         Erc20Value::try_from(amount).expect("ERROR: failed to convert Nat to u256");
 
     // TODO add withdraw fee
-
+    let ckerc20_tokens = read_state(|s| s.ckerc20_tokens.clone());
     log!(
         INFO,
         "[withdraw_erc20]: burning {} {}",
         ckerc20_withdrawal_amount,
-        ckerc20_token.ckerc20_token_symbol
+        ckerc20_tokens.1
     );
     mutate_state(|s| {
         s.erc20_balances
@@ -385,7 +379,12 @@ async fn withdraw_erc20(
         destination,
         from: caller,
         from_subaccount: None,
-        created_at: now,
+        created_at: ic_cdk::api::time(), // should be now from commented part
+        // TODO ask what should be here
+        id: mutate_state(|s| {
+            s.withdraw_count += 1_u128;
+            s.withdraw_count.clone()
+        }),
     };
     log!(
         INFO,
@@ -418,8 +417,8 @@ fn is_address_blocked(address_string: String) -> bool {
     eden_vault_backend::blocklist::is_blocked(&address)
 }
 
-#[update]
-async fn add_ckerc20_token(erc20_token: AddCkErc20Token) {
+// #[update]
+// async fn add_ckerc20_token(erc20_token: AddCkErc20Token) {
     // let orchestrator_id = read_state(|s| s.ledger_suite_orchestrator_id)
     //     .unwrap_or_else(|| ic_cdk::trap("ERROR: ERC-20 feature is not activated"));
     // if orchestrator_id != ic_cdk::caller() {
@@ -428,10 +427,10 @@ async fn add_ckerc20_token(erc20_token: AddCkErc20Token) {
     //         orchestrator_id
     //     ));
     // }
-    let ckerc20_token = erc20::CkErc20Token::try_from(erc20_token)
-        .unwrap_or_else(|e| ic_cdk::trap(&format!("ERROR: {}", e)));
-    mutate_state(|s| process_event(s, EventType::AddedCkErc20Token(ckerc20_token)));
-}
+    // let ckerc20_token = erc20::CkErc20Token::try_from(erc20_token)
+    //     .unwrap_or_else(|e: String| ic_cdk::trap(&format!("ERROR: {}", e)));
+    // mutate_state(|s| process_event(s, EventType::AddedCkErc20Token(ckerc20_token)));
+// }
 
 #[update]
 async fn get_canister_status() -> ic_cdk::api::management_canister::main::CanisterStatusResponse {

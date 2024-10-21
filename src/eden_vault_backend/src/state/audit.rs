@@ -1,11 +1,8 @@
 #[cfg(test)]
 mod tests;
 
-use std::ops::Deref;
-
 pub use super::event::{Event, EventType};
 use super::State;
-use crate::state::transactions::{Reimbursed, ReimbursementIndex};
 use crate::storage::{record_event, with_event_iter};
 
 /// Updates the state to reflect the given state transition.

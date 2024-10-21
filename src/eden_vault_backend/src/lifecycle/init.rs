@@ -10,7 +10,6 @@ use candid::types::principal::Principal;
 use candid::{CandidType, Deserialize};
 use ic_ethereum_types::Address;
 use minicbor::{Decode, Encode};
-use std::collections::BTreeMap;
 
 #[derive(Clone, Eq, PartialEq, Debug, CandidType, Decode, Deserialize, Encode)]
 pub struct InitArg {
@@ -112,6 +111,7 @@ impl TryFrom<InitArg> for State {
             evm_rpc_id: None,
             ckerc20_tokens: (ckerc20_token_address, ckerc20_token_symbol),
             erc20_balances: Default::default(),
+            withdraw_count: Nat::from(0u128)
         };
         state.validate_config()?;
         Ok(state)

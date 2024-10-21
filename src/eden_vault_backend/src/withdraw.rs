@@ -4,21 +4,16 @@ use crate::eth_rpc_client::EthRpcClient;
 use crate::eth_rpc_client::MultiCallError;
 use crate::guard::TimerGuard;
 use crate::logs::{DEBUG, INFO};
-use crate::numeric::{GasAmount, LedgerBurnIndex, LedgerMintIndex, TransactionCount};
+use crate::numeric::{GasAmount, TransactionCount};
 use crate::state::audit::{process_event, EventType};
 use crate::state::transactions::{
-    create_transaction, CreateTransactionError, Reimbursed, ReimbursementIndex,
-    ReimbursementRequest, WithdrawalRequest,
+    create_transaction, CreateTransactionError, WithdrawalRequest,
 };
 use crate::state::{mutate_state, read_state, State, TaskType};
 use crate::tx::{lazy_refresh_gas_fee_estimate, GasFeeEstimate};
 use candid::Nat;
 use futures::future::join_all;
 use ic_canister_log::log;
-use icrc_ledger_client_cdk::{CdkRuntime, ICRC1Client};
-use icrc_ledger_types::icrc1::{account::Account, transfer::TransferArg};
-use num_traits::ToPrimitive;
-use scopeguard::ScopeGuard;
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter::zip;
 

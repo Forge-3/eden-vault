@@ -5,7 +5,6 @@ mod tests;
 
 use crate::endpoints::AddCkErc20Token;
 use crate::lifecycle::EthereumNetwork;
-use crate::state::State;
 use candid::Principal;
 use ic_ethereum_types::Address;
 use minicbor::{Decode, Encode};
