@@ -28,106 +28,6 @@ const TRANSACTIONS_TO_SEND_BATCH_SIZE: usize = 5;
 
 pub const CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT: GasAmount = GasAmount::new(65_000);
 
-pub async fn process_reimbursement() {
-    let _guard = match TimerGuard::new(TaskType::Reimbursement) {
-        Ok(guard) => guard,
-        Err(e) => {
-            log!(DEBUG, "Failed retrieving reimbursement guard: {e:?}",);
-            return;
-        }
-    };
-
-    let reimbursements: Vec<(ReimbursementIndex, ReimbursementRequest)> = read_state(|s| {
-        s.eth_transactions
-            .reimbursement_requests_iter()
-            .map(|(index, request)| (index.clone(), request.clone()))
-            .collect()
-    });
-    if reimbursements.is_empty() {
-        return;
-    }
-
-    let mut error_count = 0;
-
-    for (index, reimbursement_request) in reimbursements {
-        // Ensure that even if we were to panic in the callback, after having contacted the ledger to mint the tokens,
-        // this reimbursement request will not be processed again.
-        let prevent_double_minting_guard = scopeguard::guard(index.clone(), |index| {
-            mutate_state(|s| process_event(s, EventType::QuarantinedReimbursement { index }));
-        });
-        let ledger_canister_id = match index {
-            ReimbursementIndex::CkErc20 { ledger_id, .. } => ledger_id,
-        };
-        let client = ICRC1Client {
-            runtime: CdkRuntime,
-            ledger_canister_id,
-        };
-        let args = TransferArg {
-            from_subaccount: None,
-            to: Account {
-                owner: reimbursement_request.to,
-                subaccount: reimbursement_request
-                    .to_subaccount
-                    .as_ref()
-                    .map(|subaccount| subaccount.0),
-            },
-            fee: None,
-            created_at_time: None,
-            memo: Some(reimbursement_request.clone().into()),
-            amount: Nat::from(reimbursement_request.reimbursed_amount),
-        };
-        let block_index = match client.transfer(args).await {
-            Ok(Ok(block_index)) => block_index
-                .0
-                .to_u64()
-                .expect("block index should fit into u64"),
-            Ok(Err(err)) => {
-                log!(INFO, "[process_reimbursement] Failed to mint ckETH {err}");
-                error_count += 1;
-                // minting failed, defuse guard
-                ScopeGuard::into_inner(prevent_double_minting_guard);
-                continue;
-            }
-            Err(err) => {
-                log!(
-                    INFO,
-                    "[process_reimbursement] Failed to send a message to the ledger ({ledger_canister_id}): {err:?}"
-                );
-                error_count += 1;
-                // minting failed, defuse guard
-                ScopeGuard::into_inner(prevent_double_minting_guard);
-                continue;
-            }
-        };
-        let reimbursed = Reimbursed {
-            burn_in_block: reimbursement_request.ledger_burn_index,
-            reimbursed_in_block: LedgerMintIndex::new(block_index),
-            reimbursed_amount: reimbursement_request.reimbursed_amount,
-            transaction_hash: reimbursement_request.transaction_hash,
-        };
-        let event = match index {
-            ReimbursementIndex::CkErc20 {
-                cketh_ledger_burn_index,
-                ledger_id,
-                ckerc20_ledger_burn_index: _,
-            } => EventType::ReimbursedErc20Withdrawal {
-                cketh_ledger_burn_index,
-                ckerc20_ledger_id: ledger_id,
-                reimbursed,
-            },
-        };
-        mutate_state(|s| process_event(s, event));
-        // minting succeeded, defuse guard
-        ScopeGuard::into_inner(prevent_double_minting_guard);
-    }
-    if error_count > 0 {
-        log!(
-            INFO,
-            "[process_reimbursement] Failed to reimburse {error_count} users, retrying later."
-        );
-    }
-}
-
 pub async fn process_retrieve_eth_requests() {
     let _guard = match TimerGuard::new(TaskType::RetrieveEth) {
         Ok(guard) => guard,
@@ -249,20 +149,20 @@ fn create_transactions_batch(gas_fee_estimate: GasFeeEstimate) {
                     process_event(
                         s,
                         EventType::CreatedTransaction {
-                            withdrawal_id: request.cketh_ledger_burn_index(),
+                            withdrawal_id: request.get_withdrawal_id(),
                             transaction,
                         },
                     );
                 });
             }
             Err(CreateTransactionError::InsufficientTransactionFee {
-                cketh_ledger_burn_index: ledger_burn_index,
+                withdrawal_id,
                 allowed_max_transaction_fee: withdrawal_amount,
                 actual_max_transaction_fee: max_transaction_fee,
             }) => {
                 log!(
                     INFO,
-                    "[create_transactions_batch]: Withdrawal request with burn index {ledger_burn_index} has insufficient amount {withdrawal_amount:?} to cover transaction fees: {max_transaction_fee:?}. Request moved back to end of queue."
+                    "[create_transactions_batch]: Withdrawal request with id {withdrawal_id} has insufficient amount {withdrawal_amount:?} to cover transaction fees: {max_transaction_fee:?}. Request moved back to end of queue."
                 );
                 mutate_state(|s| s.eth_transactions.reschedule_withdrawal_request(request));
             }
@@ -376,7 +276,7 @@ async fn finalize_transactions_batch() {
                     .map(|hash| rpc_client.eth_get_transaction_receipt(*hash)),
             )
             .await;
-            let mut receipts: BTreeMap<LedgerBurnIndex, TransactionReceipt> = BTreeMap::new();
+            let mut receipts: BTreeMap<Nat, TransactionReceipt> = BTreeMap::new();
             for ((hash, withdrawal_id), result) in zip(txs_to_finalize, results) {
                 match result {
                     Ok(Some(receipt)) => {

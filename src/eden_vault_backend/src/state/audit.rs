@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests;
 
+use std::ops::Deref;
+
 pub use super::event::{Event, EventType};
 use super::State;
 use crate::state::transactions::{Reimbursed, ReimbursementIndex};
@@ -51,7 +53,7 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         } => {
             state
                 .eth_transactions
-                .record_created_transaction(*withdrawal_id, transaction.clone());
+                .record_created_transaction(withdrawal_id.clone(), transaction.clone());
         }
         EventType::SignedTransaction {
             withdrawal_id: _,
@@ -75,19 +77,6 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         } => {
             state.record_finalized_transaction(withdrawal_id, transaction_receipt);
         }
-        EventType::ReimbursedEthWithdrawal(Reimbursed {
-            burn_in_block: withdrawal_id,
-            reimbursed_in_block,
-            reimbursed_amount: _,
-            transaction_hash: _,
-        }) => {
-            state.eth_transactions.record_finalized_reimbursement(
-                ReimbursementIndex::CkEth {
-                    ledger_burn_index: *withdrawal_id,
-                },
-                *reimbursed_in_block,
-            );
-        }
         EventType::SkippedBlockForContract {
             contract_address,
             block_number,
@@ -96,30 +85,6 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         }
         EventType::AcceptedErc20WithdrawalRequest(request) => {
             state.record_erc20_withdrawal_request(request.clone())
-        }
-        EventType::ReimbursedErc20Withdrawal {
-            cketh_ledger_burn_index,
-            ckerc20_ledger_id,
-            reimbursed,
-        } => {
-            state.eth_transactions.record_finalized_reimbursement(
-                ReimbursementIndex::CkErc20 {
-                    cketh_ledger_burn_index: *cketh_ledger_burn_index,
-                    ledger_id: *ckerc20_ledger_id,
-                    ckerc20_ledger_burn_index: reimbursed.burn_in_block,
-                },
-                reimbursed.reimbursed_in_block,
-            );
-        }
-        EventType::FailedErc20WithdrawalRequest(cketh_reimbursement_request) => {
-            state.eth_transactions.record_reimbursement_request(
-                ReimbursementIndex::CkErc20 {
-                    ckerc20_ledger_burn_index: cketh_reimbursement_request.ledger_burn_index,
-                    ledger_id: ,
-                    cketh_ledger_burn_index: ,
-                },
-                cketh_reimbursement_request.clone(),
-            )
         }
         EventType::QuarantinedDeposit { event_source } => {
             state.record_quarantined_deposit(*event_source);

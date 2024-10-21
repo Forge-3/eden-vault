@@ -89,6 +89,8 @@ pub struct State {
     /// - 0 item: ERC-20 contract address on Ethereum
     /// - 1 item: ckERC20 token symbol
     pub ckerc20_tokens: (Address, CkTokenSymbol),
+
+    pub withdraw_count: Nat,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -261,11 +263,11 @@ impl State {
 
     pub fn record_finalized_transaction(
         &mut self,
-        withdrawal_id: &LedgerBurnIndex,
+        withdrawal_id: &Nat,
         receipt: &TransactionReceipt,
     ) {
         self.eth_transactions
-            .record_finalized_transaction(*withdrawal_id, receipt.clone());
+            .record_finalized_transaction(withdrawal_id.clone(), receipt.clone());
         self.update_balance_upon_withdrawal(withdrawal_id, receipt);
     }
 
@@ -287,7 +289,7 @@ impl State {
 
     fn update_balance_upon_withdrawal(
         &mut self,
-        withdrawal_id: &LedgerBurnIndex,
+        withdrawal_id: &Nat,
         receipt: &TransactionReceipt,
     ) {
         let tx_fee = receipt.effective_transaction_fee();

@@ -8,15 +8,16 @@ use crate::eth_rpc_client::responses::TransactionStatus;
 use crate::lifecycle::EthereumNetwork;
 use crate::map::MultiKeyMap;
 use crate::numeric::{
-    CkTokenAmount, Erc20Value, GasAmount, LedgerBurnIndex, LedgerMintIndex, TransactionCount,
+    CkTokenAmount, Erc20Value, GasAmount, LedgerMintIndex, TransactionCount,
     TransactionNonce, Wei,
 };
 use crate::state::event::EventType;
+use crate::state::read_state;
 use crate::tx::{
     Eip1559TransactionRequest, FinalizedEip1559Transaction, GasFeeEstimate, ResubmissionStrategy,
     SignedEip1559TransactionRequest, SignedTransactionRequest, TransactionRequest,
 };
-use candid::Principal;
+use candid::{Nat, Principal};
 use ic_ethereum_types::Address;
 use icrc_ledger_types::icrc1::account::Account;
 use minicbor::{Decode, Encode};
@@ -26,7 +27,7 @@ use std::fmt;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum WithdrawalSearchParameter {
-    ByWithdrawalId(LedgerBurnIndex),
+    ByWithdrawalId(Nat),
     ByRecipient(Address),
     BySenderAccount(Account),
 }
@@ -37,6 +38,11 @@ pub enum WithdrawalRequest {
 }
 
 impl WithdrawalRequest {
+    pub fn get_withdrawal_id(&self) -> Nat {
+        match self {
+            WithdrawalRequest::CkErc20(request) => request.id.clone()
+        }
+    }
     pub fn created_at(&self) -> Option<u64> {
         match self {
             WithdrawalRequest::CkErc20(request) => Some(request.created_at),
@@ -73,11 +79,12 @@ impl WithdrawalRequest {
     pub fn match_parameter(&self, parameter: &WithdrawalSearchParameter) -> bool {
         use WithdrawalSearchParameter::*;
         match parameter {
-            ByWithdrawalId(index) => &self.cketh_ledger_burn_index() == index,
+            ByWithdrawalId(index) => &self.get_withdrawal_id() == index,
             ByRecipient(address) => &self.payee() == address,
             BySenderAccount(Account { owner, subaccount }) => {
                 &self.from() == owner && self.from_subaccount() == &subaccount.map(Subaccount)
             }
+            
         }
     }
 }
@@ -98,8 +105,8 @@ pub struct EthWithdrawalRequest {
     #[n(1)]
     pub destination: Address,
     /// The transaction ID of the ckETH burn operation.
-    #[cbor(n(2), with = "crate::cbor::id")]
-    pub ledger_burn_index: LedgerBurnIndex,
+    #[cbor(n(2), with = "crate::cbor::nat")]
+    pub ledger_burn_index: Nat,
     /// The owner of the account from which the minter burned ckETH.
     #[cbor(n(3), with = "crate::cbor::principal")]
     pub from: Principal,
@@ -133,67 +140,44 @@ pub struct Erc20WithdrawalRequest {
     /// The IC time at which the withdrawal request arrived.
     #[n(5)]
     pub created_at: u64,
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Decode, Encode)]
-pub enum ReimbursementIndex {
-    #[n(0)]
-    CkEth {
-        /// Burn index on the ckETH ledger
-        #[cbor(n(0), with = "crate::cbor::id")]
-        ledger_burn_index: LedgerBurnIndex,
-    },
-    #[n(1)]
-    CkErc20 {
-        #[cbor(n(0), with = "crate::cbor::id")]
-        cketh_ledger_burn_index: LedgerBurnIndex,
-        /// The ckERC20 ledger canister ID identifying the ledger on which the burn to be reimbursed was made.
-        #[cbor(n(1), with = "crate::cbor::principal")]
-        ledger_id: Principal,
-        /// Burn index on the ckERC20 ledger
-        #[cbor(n(2), with = "crate::cbor::id")]
-        ckerc20_ledger_burn_index: LedgerBurnIndex,
-    },
+    /// The transaction ID.
+    #[cbor(n(6), with = "crate::cbor::nat")]
+    pub id: Nat,
 }
 
 impl From<&WithdrawalRequest> for ReimbursementIndex {
     fn from(value: &WithdrawalRequest) -> Self {
         match value {
             WithdrawalRequest::CkErc20(request) => ReimbursementIndex::CkErc20 {
-                cketh_ledger_burn_index: request.cketh_ledger_burn_index,
-                ledger_id: request.ckerc20_ledger_id,
-                ckerc20_ledger_burn_index: request.ckerc20_ledger_burn_index,
+                withdrawal_id: request.id.clone(),
             },
         }
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Decode, Encode)]
+pub enum ReimbursementIndex {
+    #[n(1)]
+    CkErc20 {
+        #[cbor(n(0), with = "crate::cbor::nat")]
+        withdrawal_id: Nat,
+    },
+}
+
 impl ReimbursementIndex {
-    pub fn withdrawal_id(&self) -> LedgerBurnIndex {
+    pub fn id(&self) -> Nat {
         match self {
-            ReimbursementIndex::CkEth { ledger_burn_index } => *ledger_burn_index,
-            ReimbursementIndex::CkErc20 {
-                cketh_ledger_burn_index,
-                ..
-            } => *cketh_ledger_burn_index,
-        }
-    }
-    pub fn burn_in_block(&self) -> LedgerBurnIndex {
-        match self {
-            ReimbursementIndex::CkEth { ledger_burn_index } => *ledger_burn_index,
-            ReimbursementIndex::CkErc20 {
-                ckerc20_ledger_burn_index,
-                ..
-            } => *ckerc20_ledger_burn_index,
+            Self::CkErc20 { withdrawal_id } => withdrawal_id.clone()
         }
     }
 }
 
+
 #[derive(Clone, Eq, PartialEq, Debug, Decode, Encode)]
 pub struct ReimbursementRequest {
     /// Burn index on the ledger that should be reimbursed.
-    #[cbor(n(0), with = "crate::cbor::id")]
-    pub ledger_burn_index: LedgerBurnIndex,
+    #[cbor(n(0), with = "crate::cbor::nat")]
+    pub ledger_burn_index: Nat,
     /// The amount that should be reimbursed in the smallest denomination.
     #[n(1)]
     pub reimbursed_amount: CkTokenAmount,
@@ -208,12 +192,14 @@ pub struct ReimbursementRequest {
     pub transaction_hash: Option<Hash>,
 }
 
+
+
 #[derive(Clone, Eq, PartialEq, Debug, Decode, Encode)]
 pub struct Reimbursed {
     #[cbor(n(0), with = "crate::cbor::id")]
     pub reimbursed_in_block: LedgerMintIndex,
-    #[cbor(n(1), with = "crate::cbor::id")]
-    pub burn_in_block: LedgerBurnIndex,
+    #[cbor(n(1), with = "crate::cbor::nat")]
+    pub burn_in_block: Nat,
     /// The amount reimbursed in the smallest denomination.
     #[n(2)]
     pub reimbursed_amount: CkTokenAmount,
@@ -280,6 +266,7 @@ impl fmt::Debug for Erc20WithdrawalRequest {
             from,
             from_subaccount,
             created_at,
+            id,
         } = self;
         f.debug_struct("Erc20WithdrawalRequest")
             .field("max_transaction_fee", max_transaction_fee)
@@ -288,6 +275,7 @@ impl fmt::Debug for Erc20WithdrawalRequest {
             .field("from", &DebugPrincipal(from))
             .field("from_subaccount", from_subaccount)
             .field("created_at", created_at)
+            .field("id", id)
             .finish()
     }
 }
@@ -311,16 +299,16 @@ pub struct EthTransactions {
     pub(in crate::state) pending_withdrawal_requests: VecDeque<WithdrawalRequest>,
     // Processed withdrawal requests (transaction created, sent, or finalized).
     pub(in crate::state) processed_withdrawal_requests:
-        BTreeMap<LedgerBurnIndex, WithdrawalRequest>,
+        BTreeMap<Nat, WithdrawalRequest>,
     pub(in crate::state) created_tx:
-        MultiKeyMap<TransactionNonce, LedgerBurnIndex, TransactionRequest>,
+        MultiKeyMap<TransactionNonce, Nat, TransactionRequest>,
     pub(in crate::state) sent_tx:
-        MultiKeyMap<TransactionNonce, LedgerBurnIndex, Vec<SignedTransactionRequest>>,
+        MultiKeyMap<TransactionNonce, Nat, Vec<SignedTransactionRequest>>,
     pub(in crate::state) finalized_tx:
-        MultiKeyMap<TransactionNonce, LedgerBurnIndex, FinalizedEip1559Transaction>,
+        MultiKeyMap<TransactionNonce, Nat, FinalizedEip1559Transaction>,
     pub(in crate::state) next_nonce: TransactionNonce,
 
-    pub(in crate::state) maybe_reimburse: BTreeSet<LedgerBurnIndex>,
+    pub(in crate::state) maybe_reimburse: BTreeSet<Nat>,
     pub(in crate::state) reimbursement_requests: BTreeMap<ReimbursementIndex, ReimbursementRequest>,
     pub(in crate::state) reimbursed: BTreeMap<ReimbursementIndex, ReimbursedResult>,
 }
@@ -328,6 +316,7 @@ pub struct EthTransactions {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum CreateTransactionError {
     InsufficientTransactionFee {
+        withdrawal_id: Nat,
         allowed_max_transaction_fee: Wei,
         actual_max_transaction_fee: Wei,
     },
@@ -336,7 +325,7 @@ pub enum CreateTransactionError {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum ResubmitTransactionError {
     InsufficientTransactionFee {
-        ledger_burn_index: LedgerBurnIndex,
+        withdrawal_id: Nat,
         transaction_nonce: TransactionNonce,
         allowed_max_transaction_fee: Wei,
         max_transaction_fee: Wei,
@@ -378,38 +367,33 @@ impl EthTransactions {
         self.reimbursed.iter()
     }
 
-    fn find_reimbursed_transaction_by_cketh_ledger_burn_index(
+    fn find_reimbursed_transaction_by_get_withdrawal_id(
         &self,
-        searched_burn_index: &LedgerBurnIndex,
+        searched_burn_index: &Nat,
     ) -> Option<&ReimbursedResult> {
         self.reimbursed
             .iter()
             .find_map(|(index, value)| match index {
-                ReimbursementIndex::CkEth { ledger_burn_index }
-                    if ledger_burn_index == searched_burn_index =>
-                {
-                    Some(value)
-                }
                 ReimbursementIndex::CkErc20 {
-                    cketh_ledger_burn_index,
+                    withdrawal_id,
                     ..
-                } if cketh_ledger_burn_index == searched_burn_index => Some(value),
+                } if withdrawal_id == searched_burn_index => Some(value),
                 _ => None,
             })
     }
 
     pub fn record_withdrawal_request<R: Into<WithdrawalRequest>>(&mut self, request: R) {
         let request = request.into();
-        let burn_index = request.cketh_ledger_burn_index();
+        let withdrawal_id = request.get_withdrawal_id();
         if self
             .pending_withdrawal_requests
             .iter()
-            .any(|r| r.cketh_ledger_burn_index() == burn_index)
-            || self.created_tx.contains_alt(&burn_index)
-            || self.sent_tx.contains_alt(&burn_index)
-            || self.finalized_tx.contains_alt(&burn_index)
+            .any(|r| r.get_withdrawal_id() == withdrawal_id)
+            || self.created_tx.contains_alt(&withdrawal_id)
+            || self.sent_tx.contains_alt(&withdrawal_id)
+            || self.finalized_tx.contains_alt(&withdrawal_id)
         {
-            panic!("BUG: duplicate ckETH ledger burn index {burn_index}");
+            panic!("BUG: duplicate ckETH ledger burn index {withdrawal_id}");
         }
         self.pending_withdrawal_requests.push_back(request);
     }
@@ -420,11 +404,11 @@ impl EthTransactions {
         assert_eq!(
             self.pending_withdrawal_requests
                 .iter()
-                .filter(|r| r.cketh_ledger_burn_index() == request.cketh_ledger_burn_index())
+                .filter(|r| r.get_withdrawal_id() == request.get_withdrawal_id())
                 .count(),
             1,
             "BUG: expected exactly one withdrawal request with ckETH ledger burn index {}",
-            request.cketh_ledger_burn_index()
+            request.get_withdrawal_id()
         );
         self.remove_withdrawal_request(&request);
         self.record_withdrawal_request(request);
@@ -432,24 +416,19 @@ impl EthTransactions {
 
     pub fn record_created_transaction(
         &mut self,
-        withdrawal_id: LedgerBurnIndex,
+        withdrawal_id: Nat,
         transaction: Eip1559TransactionRequest,
     ) {
         let withdrawal_request = self
             .pending_withdrawal_requests
             .iter()
-            .find(|req| req.cketh_ledger_burn_index() == withdrawal_id)
+            .find(|req| req.get_withdrawal_id() == withdrawal_id)
             .cloned()
             .unwrap_or_else(|| panic!("BUG: withdrawal request {withdrawal_id} not found"));
         assert!(
             self.pending_withdrawal_requests
                 .contains(&withdrawal_request),
             "BUG: withdrawal request not found"
-        );
-        assert_eq!(
-            withdrawal_request.destination(),
-            transaction.destination,
-            "BUG: withdrawal request and transaction destination mismatch"
         );
         match &withdrawal_request {
             WithdrawalRequest::CkErc20(_req) => {
@@ -478,14 +457,14 @@ impl EthTransactions {
         assert_eq!(
             self.created_tx.try_insert(
                 nonce,
-                withdrawal_request.cketh_ledger_burn_index(),
+                withdrawal_request.get_withdrawal_id(),
                 transaction_request
             ),
             Ok(())
         );
         assert_eq!(
             self.processed_withdrawal_requests
-                .insert(withdrawal_id, withdrawal_request),
+                .insert(withdrawal_id.clone(), withdrawal_request),
             None
         );
         assert!(self.maybe_reimburse.insert(withdrawal_id));
@@ -533,21 +512,21 @@ impl EthTransactions {
         &self,
         latest_transaction_count: TransactionCount,
         current_gas_fee: GasFeeEstimate,
-    ) -> Vec<Result<(LedgerBurnIndex, Eip1559TransactionRequest), ResubmitTransactionError>> {
+    ) -> Vec<Result<(Nat, Eip1559TransactionRequest), ResubmitTransactionError>> {
         // If transaction count at block height H is c > 0, then transactions with nonces
         // 0, 1, ..., c - 1 were mined. If transaction count is 0, then no transactions were mined.
         // The nonce of the first pending transaction is then exactly c.
         let first_pending_tx_nonce: TransactionNonce = latest_transaction_count.change_units();
         let mut transactions_to_resubmit = Vec::new();
-        for (nonce, burn_index, signed_tx) in self
+        for (nonce, withdrawal_id, signed_tx) in self
             .sent_tx
             .iter()
-            .filter(|(nonce, _burn_index, _signed_tx)| *nonce >= &first_pending_tx_nonce)
+            .filter(|(nonce, _withdrawal_id, _signed_tx)| *nonce >= &first_pending_tx_nonce)
         {
             let last_signed_tx = signed_tx.last().expect("BUG: empty sent transactions list");
             match last_signed_tx.resubmit(current_gas_fee.clone()) {
                 Ok(Some(new_tx)) => {
-                    transactions_to_resubmit.push(Ok((*burn_index, new_tx)));
+                    transactions_to_resubmit.push(Ok((withdrawal_id.clone(), new_tx)));
                 }
                 Ok(None) => {
                     // the transaction fee is still up-to-date but because the transaction did not get included,
@@ -560,7 +539,7 @@ impl EthTransactions {
                 }) => {
                     transactions_to_resubmit.push(Err(
                         ResubmitTransactionError::InsufficientTransactionFee {
-                            ledger_burn_index: *burn_index,
+                            withdrawal_id: withdrawal_id.clone(),
                             transaction_nonce: *nonce,
                             allowed_max_transaction_fee,
                             max_transaction_fee: actual_max_transaction_fee,
@@ -583,7 +562,7 @@ impl EthTransactions {
         let new_tx = last_sent_tx.clone_resubmission_strategy(new_tx);
         assert_eq!(
             self.created_tx
-                .try_insert(nonce, *ledger_burn_index, new_tx),
+                .try_insert(nonce, ledger_burn_index.clone(), new_tx),
             Ok(())
         );
     }
@@ -591,7 +570,7 @@ impl EthTransactions {
     pub fn sent_transactions_to_finalize(
         &self,
         finalized_transaction_count: &TransactionCount,
-    ) -> BTreeMap<Hash, LedgerBurnIndex> {
+    ) -> BTreeMap<Hash, Nat> {
         let first_non_finalized_tx_nonce: TransactionNonce =
             finalized_transaction_count.change_units();
         let mut transactions = BTreeMap::new();
@@ -601,7 +580,7 @@ impl EthTransactions {
             .filter(|(nonce, _burn_index, _signed_txs)| *nonce < &first_non_finalized_tx_nonce)
         {
             for sent_tx in sent_txs {
-                if let Some(prev_index) = transactions.insert(sent_tx.as_ref().hash(), *index) {
+                if let Some(prev_index) = transactions.insert(sent_tx.as_ref().hash(), index.clone()) {
                     assert_eq!(prev_index, *index,
                                "BUG: duplicate transaction hash {} for burn indices {prev_index} and {index}", sent_tx.as_ref().hash());
                 }
@@ -612,7 +591,7 @@ impl EthTransactions {
 
     pub fn record_finalized_transaction(
         &mut self,
-        ledger_burn_index: LedgerBurnIndex,
+        ledger_burn_index: Nat,
         receipt: TransactionReceipt,
     ) {
         let sent_tx = self
@@ -635,12 +614,12 @@ impl EthTransactions {
         }
         assert_eq!(
             self.finalized_tx
-                .try_insert(nonce, ledger_burn_index, finalized_tx.clone()),
+                .try_insert(nonce, ledger_burn_index.clone(), finalized_tx.clone()),
             Ok(())
         );
 
         assert!(
-            self.maybe_reimburse.remove(&ledger_burn_index),
+            self.maybe_reimburse.remove(&ledger_burn_index.clone()),
             "failed to remove entry from maybe_reimburse with block index: {ledger_burn_index}",
         );
 
@@ -654,7 +633,7 @@ impl EthTransactions {
                     self.record_reimbursement_request(
                         index,
                         ReimbursementRequest {
-                            ledger_burn_index: request.ckerc20_ledger_burn_index,
+                            ledger_burn_index: request.id.clone(),
                             reimbursed_amount: request.withdrawal_amount.change_units(),
                             to: request.from,
                             to_subaccount: request.from_subaccount.clone(),
@@ -672,7 +651,7 @@ impl EthTransactions {
         request: ReimbursementRequest,
     ) {
         assert_eq!(
-            self.maybe_reimburse.get(&index.withdrawal_id()),
+            self.maybe_reimburse.get(&index.id()),
             None,
             "BUG: withdrawal request still in maybe_reimburse could lead to double minting!"
         );
@@ -697,30 +676,6 @@ impl EthTransactions {
             .insert(index, Err(ReimbursedError::Quarantined));
     }
 
-    pub fn record_finalized_reimbursement(
-        &mut self,
-        index: ReimbursementIndex,
-        reimbursed_in_block: LedgerMintIndex,
-    ) {
-        let reimbursement_request = self
-            .reimbursement_requests
-            .remove(&index)
-            .unwrap_or_else(|| panic!("BUG: missing reimbursement request with index {index:?}"));
-        let burn_in_block = index.burn_in_block();
-        assert_eq!(
-            self.reimbursed.insert(
-                index,
-                Ok(Reimbursed {
-                    burn_in_block,
-                    reimbursed_in_block,
-                    reimbursed_amount: reimbursement_request.reimbursed_amount,
-                    transaction_hash: reimbursement_request.transaction_hash,
-                }),
-            ),
-            None
-        );
-    }
-
     pub fn withdrawal_status(
         &self,
         parameter: &WithdrawalSearchParameter,
@@ -741,7 +696,7 @@ impl EthTransactions {
             .values()
             .filter(|r| r.match_parameter(parameter))
             .map(|request| {
-                match self.processed_transaction_status(&request.cketh_ledger_burn_index()) {
+                match self.processed_transaction_status(&request.get_withdrawal_id()) {
                     (RetrieveEthStatus::TxCreated, Some(tx)) => {
                         (request, WithdrawalStatus::TxCreated, Some(tx))
                     }
@@ -760,11 +715,11 @@ impl EthTransactions {
         pending.chain(processed).collect()
     }
 
-    pub fn transaction_status(&self, burn_index: &LedgerBurnIndex) -> RetrieveEthStatus {
+    pub fn transaction_status(&self, burn_index: &Nat) -> RetrieveEthStatus {
         if self
             .pending_withdrawal_requests
             .iter()
-            .any(|r| &r.cketh_ledger_burn_index() == burn_index)
+            .any(|r| &r.get_withdrawal_id() == burn_index)
         {
             return RetrieveEthStatus::Pending;
         }
@@ -773,7 +728,7 @@ impl EthTransactions {
 
     fn processed_transaction_status(
         &self,
-        burn_index: &LedgerBurnIndex,
+        burn_index: &Nat,
     ) -> (RetrieveEthStatus, Option<&Eip1559TransactionRequest>) {
         if let Some(tx) = self.created_tx.get_alt(burn_index) {
             return (RetrieveEthStatus::TxCreated, Some(tx.as_ref()));
@@ -788,7 +743,7 @@ impl EthTransactions {
 
         if let Some(tx) = self.finalized_tx.get_alt(burn_index) {
             if let Some(Ok(reimbursed)) =
-                self.find_reimbursed_transaction_by_cketh_ledger_burn_index(burn_index)
+                self.find_reimbursed_transaction_by_get_withdrawal_id(burn_index)
             {
                 return (
                     RetrieveEthStatus::TxFinalized(TxFinalizedStatus::Reimbursed {
@@ -866,7 +821,7 @@ impl EthTransactions {
     ) -> impl Iterator<
         Item = (
             &TransactionNonce,
-            &LedgerBurnIndex,
+            &Nat,
             &Eip1559TransactionRequest,
         ),
     > {
@@ -878,10 +833,10 @@ impl EthTransactions {
     pub fn transactions_to_sign_batch(
         &self,
         batch_size: usize,
-    ) -> Vec<(LedgerBurnIndex, Eip1559TransactionRequest)> {
+    ) -> Vec<(Nat, Eip1559TransactionRequest)> {
         self.transactions_to_sign_iter()
             .take(batch_size)
-            .map(|(_nonce, withdrawal_id, tx)| (*withdrawal_id, tx.clone()))
+            .map(|(_nonce, withdrawal_id, tx)| (withdrawal_id.clone(), tx.clone()))
             .collect()
     }
 
@@ -909,7 +864,7 @@ impl EthTransactions {
     ) -> impl Iterator<
         Item = (
             &TransactionNonce,
-            &LedgerBurnIndex,
+            &Nat,
             Vec<&SignedEip1559TransactionRequest>,
         ),
     > {
@@ -920,14 +875,14 @@ impl EthTransactions {
 
     pub fn get_finalized_transaction(
         &self,
-        burn_index: &LedgerBurnIndex,
+        burn_index: &Nat,
     ) -> Option<&FinalizedEip1559Transaction> {
         self.finalized_tx.get_alt(burn_index)
     }
 
     pub fn get_processed_withdrawal_request(
         &self,
-        burn_index: &LedgerBurnIndex,
+        burn_index: &Nat,
     ) -> Option<&WithdrawalRequest> {
         self.processed_withdrawal_requests.get(burn_index)
     }
@@ -937,7 +892,7 @@ impl EthTransactions {
     ) -> impl Iterator<
         Item = (
             &TransactionNonce,
-            &LedgerBurnIndex,
+            &Nat,
             &FinalizedEip1559Transaction,
         ),
     > {
@@ -959,9 +914,9 @@ impl EthTransactions {
     }
 
     fn expect_last_sent_tx_entry<'a>(
-        sent_tx: &'a MultiKeyMap<TransactionNonce, LedgerBurnIndex, Vec<SignedTransactionRequest>>,
+        sent_tx: &'a MultiKeyMap<TransactionNonce, Nat, Vec<SignedTransactionRequest>>,
         nonce: &TransactionNonce,
-    ) -> (&'a LedgerBurnIndex, &'a SignedTransactionRequest) {
+    ) -> (&'a Nat, &'a SignedTransactionRequest) {
         let (ledger_burn_index, sent_txs) = sent_tx
             .get_entry(nonce)
             .expect("BUG: sent transaction not found");
@@ -970,7 +925,7 @@ impl EthTransactions {
     }
 
     fn cleanup_failed_resubmitted_transactions(
-        created_tx: &mut MultiKeyMap<TransactionNonce, LedgerBurnIndex, TransactionRequest>,
+        created_tx: &mut MultiKeyMap<TransactionNonce, Nat, TransactionRequest>,
         nonce: &TransactionNonce,
     ) {
         use crate::logs::INFO;
@@ -987,7 +942,7 @@ impl EthTransactions {
 
         fn sorted_requests(requests: &VecDeque<WithdrawalRequest>) -> Vec<WithdrawalRequest> {
             let mut buf: Vec<_> = requests.iter().cloned().collect();
-            buf.sort_unstable_by_key(|req| req.cketh_ledger_burn_index());
+            buf.sort_unstable_by_key(|req| req.get_withdrawal_id());
             buf
         }
 
@@ -1054,15 +1009,19 @@ pub fn create_transaction(
                     actual_max_transaction_fee: actual_min_max_fee_per_gas
                         .transaction_cost(gas_limit)
                         .unwrap_or(Wei::MAX),
+                    withdrawal_id: request.id.clone(),
                 });
             }
+
+            let erc20_contract_address = read_state(|s| s.erc20_helper_contract_address);
+
             Ok(Eip1559TransactionRequest {
                 chain_id: ethereum_network.chain_id(),
                 nonce,
                 max_priority_fee_per_gas: gas_fee_estimate.max_priority_fee_per_gas,
                 max_fee_per_gas: request_max_fee_per_gas,
                 gas_limit,
-                destination: request.erc20_contract_address,
+                destination: erc20_contract_address.unwrap(),
                 amount: Wei::ZERO,
                 data: TransactionCallData::Erc20Transfer {
                     to: request.destination,

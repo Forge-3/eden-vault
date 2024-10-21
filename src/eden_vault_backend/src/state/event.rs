@@ -43,8 +43,8 @@ pub enum EventType {
     /// The minter created a new transaction to handle a withdrawal request.
     #[n(8)]
     CreatedTransaction {
-        #[cbor(n(0), with = "crate::cbor::id")]
-        withdrawal_id: LedgerBurnIndex,
+        #[cbor(n(0), with = "crate::cbor::nat")]
+        withdrawal_id: Nat,
         #[n(1)]
         transaction: Eip1559TransactionRequest,
     },
@@ -52,8 +52,8 @@ pub enum EventType {
     #[n(9)]
     SignedTransaction {
         /// The withdrawal identifier.
-        #[cbor(n(0), with = "crate::cbor::id")]
-        withdrawal_id: LedgerBurnIndex,
+        #[cbor(n(0), with = "crate::cbor::nat")]
+        withdrawal_id: Nat,
         /// The signed transaction.
         #[n(1)]
         transaction: SignedEip1559TransactionRequest,
@@ -62,8 +62,8 @@ pub enum EventType {
     #[n(10)]
     ReplacedTransaction {
         /// The withdrawal identifier.
-        #[cbor(n(0), with = "crate::cbor::id")]
-        withdrawal_id: LedgerBurnIndex,
+        #[cbor(n(0), with = "crate::cbor::nat")]
+        withdrawal_id: Nat,
         /// The replacement transaction.
         #[n(1)]
         transaction: Eip1559TransactionRequest,
@@ -72,16 +72,12 @@ pub enum EventType {
     #[n(11)]
     FinalizedTransaction {
         /// The withdrawal identifier.
-        #[cbor(n(0), with = "crate::cbor::id")]
-        withdrawal_id: LedgerBurnIndex,
+        #[cbor(n(0), with = "crate::cbor::nat")]
+        withdrawal_id: Nat,
         /// The receipt for the finalized transaction.
         #[n(1)]
         transaction_receipt: TransactionReceipt,
     },
-    /// The minter successfully reimbursed a failed withdrawal
-    /// or the transaction fee associated with a ckERC20 withdrawal.
-    #[n(12)]
-    ReimbursedEthWithdrawal(#[n(0)] Reimbursed),
     /// The minter discovered a ckERC20 deposit in the helper contract logs.
     #[n(15)]
     AcceptedErc20Deposit(#[n(0)] ReceivedErc20Event),
@@ -105,18 +101,6 @@ pub enum EventType {
         #[n(0)]
         block_number: BlockNumber,
     },
-    #[n(19)]
-    ReimbursedErc20Withdrawal {
-        #[cbor(n(0), with = "crate::cbor::id")]
-        cketh_ledger_burn_index: LedgerBurnIndex,
-        #[cbor(n(1), with = "crate::cbor::principal")]
-        ckerc20_ledger_id: Principal,
-        #[n(2)]
-        reimbursed: Reimbursed,
-    },
-    /// The minter could not burn the given amount of ckERC20 tokens.
-    #[n(20)]
-    FailedErc20WithdrawalRequest(#[n(0)] ReimbursementRequest),
     /// The minter unexpectedly panic while processing a deposit.
     /// The deposit is quarantined to prevent any double minting and
     /// will not be processed without further manual intervention.

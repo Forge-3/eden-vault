@@ -133,7 +133,7 @@ pub enum CandidBlockTag {
 impl From<EthWithdrawalRequest> for RetrieveEthRequest {
     fn from(value: EthWithdrawalRequest) -> Self {
         Self {
-            block_index: Nat::from(value.ledger_burn_index.get()),
+            block_index: Nat::from(value.ledger_burn_index),
         }
     }
 }
@@ -206,7 +206,7 @@ pub enum WithdrawalError {
 
 #[derive(Clone, Eq, PartialEq, Debug, CandidType, Deserialize)]
 pub enum WithdrawalSearchParameter {
-    ByWithdrawalId(u64),
+    ByWithdrawalId(Nat),
     ByRecipient(String),
     BySenderAccount(Account),
 }
@@ -217,7 +217,7 @@ impl TryFrom<WithdrawalSearchParameter> for transactions::WithdrawalSearchParame
     fn try_from(parameter: WithdrawalSearchParameter) -> Result<Self, String> {
         use WithdrawalSearchParameter::*;
         match parameter {
-            ByWithdrawalId(index) => Ok(Self::ByWithdrawalId(LedgerBurnIndex::new(index))),
+            ByWithdrawalId(index) => Ok(Self::ByWithdrawalId(index)),
             ByRecipient(address) => Ok(Self::ByRecipient(ic_ethereum_types::Address::from_str(
                 &address,
             )?)),
@@ -390,20 +390,6 @@ pub mod events {
             withdrawal_id: Nat,
             transaction_receipt: TransactionReceipt,
         },
-        ReimbursedEthWithdrawal {
-            reimbursed_in_block: Nat,
-            withdrawal_id: Nat,
-            reimbursed_amount: Nat,
-            transaction_hash: Option<String>,
-        },
-        ReimbursedErc20Withdrawal {
-            withdrawal_id: Nat,
-            burn_in_block: Nat,
-            reimbursed_in_block: Nat,
-            ledger_id: Principal,
-            reimbursed_amount: Nat,
-            transaction_hash: Option<String>,
-        },
         SkippedBlock {
             contract_address: Option<String>,
             block_number: Nat,
@@ -425,12 +411,6 @@ pub mod events {
             from: Principal,
             from_subaccount: Option<[u8; 32]>,
             created_at: u64,
-        },
-        FailedErc20WithdrawalRequest {
-            withdrawal_id: Nat,
-            reimbursed_amount: Nat,
-            to: Principal,
-            to_subaccount: Option<[u8; 32]>,
         },
         MintedCkErc20 {
             event_source: EventSource,
