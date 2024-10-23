@@ -3,7 +3,7 @@ use crate::eth_rpc::{BlockSpec, HttpOutcallError};
 use crate::eth_rpc_client::EthRpcClient;
 use crate::guard::TimerGuard;
 use crate::logs::{DEBUG, INFO};
-use crate::numeric::{BlockNumber};
+use crate::numeric::BlockNumber;
 use crate::state::{
     audit::process_event, event::EventType, mutate_state, read_state, State, TaskType,
 };

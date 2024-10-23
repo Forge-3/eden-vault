@@ -135,11 +135,6 @@ impl Display for InvalidEventReason {
 }
 
 impl State {
-    //TODO make it available only for admin
-    pub fn set_admin(&mut self, new_admin: Principal) {
-        self.admin = new_admin;
-    }
-
     pub fn validate_config(&self) -> Result<(), InvalidStateError> {
         if self.ecdsa_key_name.trim().is_empty() {
             return Err(InvalidStateError::InvalidEcdsaKeyName(
@@ -373,7 +368,10 @@ impl State {
             erc20_helper_contract_address,
             last_erc20_scraped_block_number,
             evm_rpc_id,
+            ckerc20_token_address,
+            ckerc20_token_symbol,
         } = upgrade_args;
+
         if let Some(nonce) = next_transaction_nonce {
             let nonce = TransactionNonce::try_from(nonce)
                 .map_err(|e| InvalidStateError::InvalidTransactionNonce(format!("ERROR: {}", e)))?;
@@ -407,6 +405,17 @@ impl State {
                 self.evm_rpc_id = Some(evm_id);
             }
         }
+        if let (Some(address), Some(symbol)) = (ckerc20_token_address, ckerc20_token_symbol) {
+            let ckerc20_token_address = Address::from_str(&address).map_err(|e| {
+                InvalidStateError::InvalidCkErc20Address(format!("ERROR: {}", e))
+            })?;
+            let ckerc20_token_symbol = CkTokenSymbol::from_str(&symbol).map_err(|e| {
+                InvalidStateError::InvalidCkTokenSymbol(format!("ERROR: {}", e))
+            })?;
+
+            self.ckerc20_tokens = (ckerc20_token_address, ckerc20_token_symbol);
+        }
+
         self.validate_config()
     }
 

@@ -293,7 +293,7 @@ async fn withdraw_eth(
 */
 #[update]
 async fn retrieve_eth_status(block_index: u64) -> RetrieveEthStatus {
-    let ledger_burn_index = LedgerBurnIndex::new(block_index);
+    let _ledger_burn_index = LedgerBurnIndex::new(block_index);
     let ledger_burn_index_nat = Nat::from(block_index as u128);
     read_state(|s| s.eth_transactions.transaction_status(&ledger_burn_index_nat))
 }
@@ -311,7 +311,7 @@ async fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<Withdraw
                     withdrawal_id: request.get_withdrawal_id(),
                     recipient_address: request.payee().to_string(),
                     token_symbol: match request {
-                        CkErc20(r) => s.ckerc20_tokens.1.to_string(),
+                        CkErc20(_r) => s.ckerc20_tokens.1.to_string(),
                     },
                     withdrawal_amount: match request {
                         CkErc20(r) => r.withdrawal_amount.into(),
@@ -1019,6 +1019,28 @@ fn check_candid_interface_compatibility() {
         "declared candid interface in cketh_minter.did file",
         candid_parser::utils::CandidSource::File(old_interface.as_path()),
     );
+}
+
+#[update]
+async fn set_admin(new_admin: candid::Principal) -> Result<(), String> {
+    let caller = validate_caller_not_anonymous();
+    let current_admin = read_state(|s| s.admin.clone());
+    if caller != current_admin {
+        return Err("Only the current admin can set a new admin.".to_string());
+    }
+
+    mutate_state(|s| {
+        s.admin = new_admin;
+    });
+
+    Ok(())
+}
+
+#[query]
+async fn erc20_balance_of(principal: candid::Principal) -> Nat {
+    read_state(|s| {
+        s.erc20_balances.balance_of(&principal).try_into().unwrap()
+    })
 }
 
 ic_cdk::export_candid!();
