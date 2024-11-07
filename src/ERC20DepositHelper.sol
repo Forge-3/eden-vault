@@ -464,8 +464,7 @@ library SafeERC20 {
 */
 
 
-pragma solidity 0.8.20;
-
+pragma solidity ^0.8.20;
 
 /**
  * @title A helper smart contract for ERC20 <-> ckERC20 conversion.
@@ -476,7 +475,7 @@ contract CkErc20Deposit {
 
     address private immutable cketh_minter_main_address;
     event ReceivedErc20(address indexed erc20_contract_address, address indexed owner, uint256 amount, bytes32 indexed principal);
-
+    
     /**
      * @dev Set cketh_minter_main_address.
      */

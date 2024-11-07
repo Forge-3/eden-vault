@@ -153,7 +153,7 @@ where
                     }
                 };
             };
-
+            ic_cdk::println!("XD_transaction_events: {:?}", transaction_events);
             for event in transaction_events {
                 log!(
                     INFO,

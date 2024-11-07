@@ -380,7 +380,7 @@ async fn withdraw_erc20(
         from: caller,
         from_subaccount: None,
         created_at: ic_cdk::api::time(), // should be now from commented part
-        // TODO ask what should be here
+        // TODO
         id: mutate_state(|s| {
             s.withdraw_count += 1_u128;
             s.withdraw_count.clone()
@@ -1037,9 +1037,17 @@ async fn set_admin(new_admin: candid::Principal) -> Result<(), String> {
 }
 
 #[query]
-async fn erc20_balance_of(principal: candid::Principal) -> Nat {
+async fn erc20_my_balance() -> Nat {
+    let caller = validate_caller_not_anonymous();
     read_state(|s| {
-        s.erc20_balances.balance_of(&principal).try_into().unwrap()
+        s.erc20_balances.balance_of(&caller).try_into().unwrap()
+    })
+}
+
+#[query]
+async fn erc20_balance() -> Nat {
+    read_state(|s| {
+        s.erc20_balances.get_erc20_balance().try_into().unwrap()
     })
 }
 

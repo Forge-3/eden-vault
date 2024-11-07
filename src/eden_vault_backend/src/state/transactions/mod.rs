@@ -1013,15 +1013,15 @@ pub fn create_transaction(
                 });
             }
 
-            let erc20_contract_address = read_state(|s| s.erc20_helper_contract_address);
-
+            let erc20_contract_address = read_state(|s| s.ckerc20_tokens.0);
+            
             Ok(Eip1559TransactionRequest {
                 chain_id: ethereum_network.chain_id(),
                 nonce,
                 max_priority_fee_per_gas: gas_fee_estimate.max_priority_fee_per_gas,
                 max_fee_per_gas: request_max_fee_per_gas,
                 gas_limit,
-                destination: erc20_contract_address.unwrap(),
+                destination: erc20_contract_address,
                 amount: Wei::ZERO,
                 data: TransactionCallData::Erc20Transfer {
                     to: request.destination,

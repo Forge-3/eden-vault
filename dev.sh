@@ -3,13 +3,17 @@ pkill anvil
 pkill gnome-terminal
 
 gnome-terminal \
-    --tab --title="Anvil - EVM blockchain" -- bash -c "anvil; exec bash" 
+    --tab --title="Anvil - EVM blockchain" -- bash -c "anvil --block-time 3; exec bash" 
 gnome-terminal \
     --tab --title="DFX - IC blockchain" -- bash -c "dfx start --clean; exec bash"
 
 sleep 10s
 export ALICE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 export BOB_PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+
+dfx deploy evm_rpc --argument '(record {})'
+
+dfx canister call evm_rpc request '(variant {Custom=record {url="http://127.0.0.1:8545"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' --wallet $(dfx identity get-wallet) --with-cycles 1000000000
 
 dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     ethereum_network = variant { Local };
@@ -24,6 +28,7 @@ dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     ckerc20_token_address = "0x1234567890abcdef1234567890abcdef12345678" : text;
     ckerc20_token_symbol = "ckex" : text;
 } })'
+
 
 sleep 1s
 MINTER_ADDRESS=$(dfx canister call eden_vault_backend minter_address --output json | sed 's/^.//;s/.$//')
@@ -48,11 +53,14 @@ dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
     erc20_helper_contract_address = opt "'"$CK_ERC20_DEPOSIT_ADDRESS"'" : opt text;
     last_erc20_scraped_block_number = null : opt nat;
     ledger_suite_orchestrator_id = null : opt principal;
-    evm_rpc_id = null : opt principal;
+    evm_rpc_id = opt principal "bkyz2-fmaaa-aaaaa-qaaaq-cai" : opt principal ;
     ckerc20_token_address = opt "'"$FORGE_TOKEN_ADDRESS"'" : opt text;
     ckerc20_token_symbol = opt "ckFT" : opt text;
 } })' --upgrade-unchanged
 
+cast send $MINTER_ADDRESS --value 100ether --rpc-url http://127.0.0.1:8545 --private-key $ALICE_PRIVATE_KEY
 
 npx typechain --target ethers-v6 --out-dir ./types './out/**/ForgeToken.json'
 npx typechain --target ethers-v6 --out-dir ./types './out/**/CkErc20Deposit.json'
+
+

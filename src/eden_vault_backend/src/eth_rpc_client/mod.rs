@@ -37,7 +37,7 @@ mod tests;
 
 // We expect most of the calls to contain zero events.
 const ETH_GET_LOGS_INITIAL_RESPONSE_SIZE_ESTIMATE: u64 = 100;
-const TOTAL_NUMBER_OF_PROVIDERS: u8 = 4;
+const TOTAL_NUMBER_OF_PROVIDERS: u8 = 1;
 
 #[derive(Debug)]
 pub struct EthRpcClient {

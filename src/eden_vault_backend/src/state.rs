@@ -311,7 +311,7 @@ impl State {
                 .expect("BUG: debited amount always fits into U256"),
             TransactionStatus::Failure => tx_fee,
         };
-        self.eth_balance.eth_balance_sub(debited_amount);
+        // self.eth_balance.eth_balance_sub(debited_amount);
         self.eth_balance.total_effective_tx_fees_add(tx_fee);
         self.eth_balance.total_unspent_tx_fees_add(unspent_tx_fee);
 
@@ -629,6 +629,10 @@ impl Default for Erc20Balances {
 }
 
 impl Erc20Balances {
+
+    pub fn get_erc20_balance(&self) -> Erc20Value {
+        self.erc20_balance
+    }
 
     pub fn balance_of(&self, principal: &Principal) -> Erc20Value {
         *self
