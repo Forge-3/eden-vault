@@ -1,4 +1,4 @@
-use candid::Nat;
+use candid::{Nat, Principal};
 use eden_vault_backend::address::{validate_address_as_destination, AddressValidationError};
 use eden_vault_backend::deposit::scrape_logs;
 use eden_vault_backend::endpoints::ckerc20::{
@@ -19,7 +19,7 @@ use eden_vault_backend::ledger_client::{LedgerBurnError, LedgerClient};
 use eden_vault_backend::lifecycle::MinterArg;
 use eden_vault_backend::logs::INFO;
 use eden_vault_backend::memo::BurnMemo;
-use eden_vault_backend::numeric::{Erc20Value, LedgerBurnIndex, Wei};
+use eden_vault_backend::numeric::{Erc20Value, LedgerBurnIndex, Wei, Erc20Tag};
 use eden_vault_backend::state::audit::{process_event, Event, EventType};
 use eden_vault_backend::state::transactions::{
     Erc20WithdrawalRequest, EthWithdrawalRequest, Reimbursed, ReimbursementIndex,
@@ -46,6 +46,7 @@ use std::convert::TryFrom;
 use std::str::FromStr;
 use std::time::Duration;
 use crate::state::transactions::Subaccount;
+use crate::checked_amount::CheckedAmountOf;
 
 pub const SEPOLIA_TEST_CHAIN_ID: u64 = 11155111;
 pub const CKETH_LEDGER_TRANSACTION_FEE: Wei = Wei::new(2_000_000_000_000_u128);
@@ -379,7 +380,7 @@ async fn withdraw_erc20(
         destination,
         from: caller,
         from_subaccount: None,
-        created_at: ic_cdk::api::time(), // should be now from commented part
+        created_at: ic_cdk::api::time(),
         // TODO
         id: mutate_state(|s| {
             s.withdraw_count += 1_u128;
@@ -1022,18 +1023,18 @@ fn check_candid_interface_compatibility() {
 }
 
 #[update]
-async fn set_admin(new_admin: candid::Principal) -> Result<(), String> {
+async fn set_admin(new_admin: candid::Principal) -> Result<String, String> {
     let caller = validate_caller_not_anonymous();
     let current_admin = read_state(|s| s.admin.clone());
     if caller != current_admin {
-        return Err("Only the current admin can set a new admin.".to_string());
+        return Err("ERROR: Only the current admin can set a new admin.".to_string());
     }
 
     mutate_state(|s| {
         s.admin = new_admin;
     });
 
-    Ok(())
+    Ok("Admin successfully updated.".to_string())
 }
 
 #[query]
@@ -1045,11 +1046,40 @@ async fn erc20_my_balance() -> Nat {
 }
 
 #[query]
+async fn erc20_balance_of(principal: Principal ) -> Nat {
+    read_state(|s| {
+        s.erc20_balances.balance_of(&principal).try_into().unwrap()
+    })
+}
+
+#[query]
 async fn erc20_balance() -> Nat {
     read_state(|s| {
         s.erc20_balances.get_erc20_balance().try_into().unwrap()
     })
 }
+
+#[update]
+async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<String, String> {
+    let caller = validate_caller_not_anonymous();
+
+    let checked_amount = CheckedAmountOf::<Erc20Tag>::try_from(amount.clone()).map_err(|err| {
+        format!("Failed to convert Nat to CheckedAmountOf<Erc20Tag>: {}", err)
+    })?;
+
+    mutate_state(|s| {
+        let caller_balance = s.erc20_balances.balance_of(&caller);
+        if caller_balance < checked_amount {
+            ic_cdk::trap("ERROR: Insufficient balance");
+            return Err("ERROR: Insufficient balance".to_string());
+        }
+
+        s.erc20_balances.principal_erc20_sub(caller, checked_amount);
+        s.erc20_balances.principal_erc20_add(receiver, checked_amount);
+        Ok("Transfer succeded.".to_string())
+    })
+}
+
 
 ic_cdk::export_candid!();
 
