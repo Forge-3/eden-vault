@@ -1,4 +1,3 @@
-type AccessListItem = record { storage_keys : vec blob; address : text };
 type Account = record { owner : principal; subaccount : opt blob };
 type CandidBlockTag = variant { Safe; Finalized; Latest };
 type CanisterStatusResponse = record {
@@ -28,112 +27,18 @@ type DefiniteCanisterSettings = record {
 };
 type EthTransaction = record { transaction_hash : text };
 type EthereumNetwork = variant { Mainnet; Local; Sepolia };
-type Event = record { timestamp : nat64; payload : EventPayload };
-type EventPayload = variant {
-  SkippedBlock : record { block_number : nat; contract_address : opt text };
-  AcceptedErc20Deposit : record {
-    "principal" : principal;
-    transaction_hash : text;
-    value : nat;
-    log_index : nat;
-    block_number : nat;
-    erc20_contract_address : text;
-    from_address : text;
-  };
-  SignedTransaction : record { raw_transaction : text; withdrawal_id : nat };
-  Upgrade : UpgradeArg;
-  Init : InitArg;
-  AddedCkErc20Token : record {
-    ckerc20_ledger_id : principal;
-    chain_id : nat;
-    address : text;
-    ckerc20_token_symbol : text;
-  };
-  QuarantinedDeposit : record { event_source : EventSource };
-  SyncedToBlock : record { block_number : nat };
-  AcceptedDeposit : record {
-    "principal" : principal;
-    transaction_hash : text;
-    value : nat;
-    log_index : nat;
-    block_number : nat;
-    from_address : text;
-  };
-  ReplacedTransaction : record {
-    withdrawal_id : nat;
-    transaction : UnsignedTransaction;
-  };
-  QuarantinedReimbursement : record { index : ReimbursementIndex };
-  MintedCkEth : record { event_source : EventSource; mint_block_index : nat };
-  ReimbursedEthWithdrawal : record {
-    transaction_hash : opt text;
-    withdrawal_id : nat;
-    reimbursed_amount : nat;
-    reimbursed_in_block : nat;
-  };
-  FailedErc20WithdrawalRequest : record {
-    to : principal;
-    withdrawal_id : nat;
-    reimbursed_amount : nat;
-    to_subaccount : opt blob;
-  };
-  ReimbursedErc20Withdrawal : record {
-    burn_in_block : nat;
-    transaction_hash : opt text;
-    withdrawal_id : nat;
-    reimbursed_amount : nat;
-    ledger_id : principal;
-    reimbursed_in_block : nat;
-  };
-  MintedCkErc20 : record {
-    event_source : EventSource;
-    erc20_contract_address : text;
-    mint_block_index : nat;
-    ckerc20_token_symbol : text;
-  };
-  CreatedTransaction : record {
-    withdrawal_id : nat;
-    transaction : UnsignedTransaction;
-  };
-  InvalidDeposit : record { event_source : EventSource; reason : text };
-  SyncedErc20ToBlock : record { block_number : nat };
-  AcceptedErc20WithdrawalRequest : record {
-    cketh_ledger_burn_index : nat;
-    destination : text;
-    ckerc20_ledger_id : principal;
-    withdrawal_amount : nat;
-    from : principal;
-    created_at : nat64;
-    from_subaccount : opt blob;
-    erc20_contract_address : text;
-    ckerc20_ledger_burn_index : nat;
-    max_transaction_fee : nat;
-  };
-  AcceptedEthWithdrawalRequest : record {
-    ledger_burn_index : nat;
-    destination : text;
-    withdrawal_amount : nat;
-    from : principal;
-    created_at : opt nat64;
-    from_subaccount : opt blob;
-  };
-  FinalizedTransaction : record {
-    withdrawal_id : nat;
-    transaction_receipt : TransactionReceipt;
-  };
-};
-type EventSource = record { transaction_hash : text; log_index : nat };
-type GetEventsArg = record { start : nat64; length : nat64 };
-type GetEventsResult = record { total_event_count : nat64; events : vec Event };
 type InitArg = record {
   ethereum_network : EthereumNetwork;
+  admin : principal;
   last_scraped_block_number : nat;
   ecdsa_key_name : text;
   next_transaction_nonce : nat;
+  ckerc20_token_address : text;
   ledger_id : principal;
   ethereum_contract_address : opt text;
   minimum_withdrawal_amount : nat;
   ethereum_block_height : CandidBlockTag;
+  ckerc20_token_symbol : text;
 };
 type LedgerError = variant {
   TemporarilyUnavailable : text;
@@ -164,18 +69,15 @@ type QueryStats = record {
   num_calls_total : nat;
   request_payload_bytes_total : nat;
 };
-type ReimbursementIndex = variant {
-  CkErc20 : record {
-    cketh_ledger_burn_index : nat;
-    ledger_id : principal;
-    ckerc20_ledger_burn_index : nat;
-  };
-  CkEth : record { ledger_burn_index : nat };
-};
-type Result = variant { Ok : RetrieveErc20Request; Err : WithdrawErc20Error };
+type Result = variant { Ok : text; Err : text };
+type Result_1 = variant { Ok : RetrieveErc20Request; Err : WithdrawErc20Error };
 type RetrieveErc20Request = record {
-  ckerc20_block_index : nat;
-  cketh_block_index : nat;
+  id : nat;
+  destination : text;
+  withdrawal_amount : nat;
+  from : principal;
+  created_at : nat64;
+  max_transaction_fee : nat;
 };
 type RetrieveEthStatus = variant {
   NotFound;
@@ -184,15 +86,6 @@ type RetrieveEthStatus = variant {
   TxCreated;
   Pending;
 };
-type TransactionReceipt = record {
-  effective_gas_price : nat;
-  status : TransactionStatus;
-  transaction_hash : text;
-  block_hash : text;
-  block_number : nat;
-  gas_used : nat;
-};
-type TransactionStatus = variant { Success; Failure };
 type TxFinalizedStatus = variant {
   Success : record {
     transaction_hash : text;
@@ -205,32 +98,17 @@ type TxFinalizedStatus = variant {
   };
   PendingReimbursement : EthTransaction;
 };
-type UnsignedTransaction = record {
-  destination : text;
-  value : nat;
-  max_priority_fee_per_gas : nat;
-  data : blob;
-  max_fee_per_gas : nat;
-  chain_id : nat;
-  nonce : nat;
-  gas_limit : nat;
-  access_list : vec AccessListItem;
-};
 type UpgradeArg = record {
   next_transaction_nonce : opt nat;
   evm_rpc_id : opt principal;
-  ledger_suite_orchestrator_id : opt principal;
+  ckerc20_token_address : opt text;
   erc20_helper_contract_address : opt text;
   last_erc20_scraped_block_number : opt nat;
-  ethereum_contract_address : opt text;
   minimum_withdrawal_amount : opt nat;
   ethereum_block_height : opt CandidBlockTag;
+  ckerc20_token_symbol : opt text;
 };
-type WithdrawErc20Arg = record {
-  ckerc20_ledger_id : principal;
-  recipient : text;
-  amount : nat;
-};
+type WithdrawErc20Arg = record { recipient : text; amount : nat };
 type WithdrawErc20Error = variant {
   TokenNotSupported : record { supported_tokens : vec CkErc20Token };
   TemporarilyUnavailable : text;
@@ -242,7 +120,7 @@ type WithdrawalDetail = record {
   status : WithdrawalStatus;
   token_symbol : text;
   withdrawal_amount : nat;
-  withdrawal_id : nat64;
+  withdrawal_id : nat;
   from : principal;
   from_subaccount : opt blob;
   max_transaction_fee : opt nat;
@@ -251,7 +129,7 @@ type WithdrawalDetail = record {
 type WithdrawalSearchParameter = variant {
   ByRecipient : text;
   BySenderAccount : Account;
-  ByWithdrawalId : nat64;
+  ByWithdrawalId : nat;
 };
 type WithdrawalStatus = variant {
   TxFinalized : TxFinalizedStatus;
@@ -260,12 +138,16 @@ type WithdrawalStatus = variant {
   Pending;
 };
 service : (MinterArg) -> {
+  erc20_balance : () -> (nat) query;
+  erc20_balance_of : (principal) -> (nat) query;
+  erc20_my_balance : () -> (nat) query;
+  erc20_transfer : (principal, nat) -> (Result);
   get_canister_status : () -> (CanisterStatusResponse);
-  get_events : (GetEventsArg) -> (GetEventsResult) query;
   is_address_blocked : (text) -> (bool) query;
   minter_address : () -> (text);
   retrieve_eth_status : (nat64) -> (RetrieveEthStatus);
-  withdraw_erc20 : (WithdrawErc20Arg) -> (Result);
+  set_admin : (principal) -> (Result);
+  withdraw_erc20 : (WithdrawErc20Arg) -> (Result_1);
   withdrawal_status : (WithdrawalSearchParameter) -> (
       vec WithdrawalDetail,
     ) query;
