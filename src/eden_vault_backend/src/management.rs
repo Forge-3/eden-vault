@@ -89,7 +89,7 @@ pub async fn sign_with_ecdsa(
         sign_with_ecdsa, EcdsaCurve, EcdsaKeyId, SignWithEcdsaArgument,
     };
 
-    let result = sign_with_ecdsa( SignWithEcdsaArgument{
+    let result = sign_with_ecdsa(SignWithEcdsaArgument {
         message_hash: message_hash.to_vec(),
         derivation_path: derivation_path.into_inner(),
         key_id: EcdsaKeyId {

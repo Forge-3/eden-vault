@@ -30,13 +30,9 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         EventType::MintedCkErc20 {
             event_source,
             principal,
-            amount
+            amount,
         } => {
-            state.record_successful_mint(
-                *event_source,
-                *principal,
-                *amount,
-            );
+            state.record_successful_mint(*event_source, *principal, *amount);
         }
         EventType::SyncedToBlock { block_number } => {
             state.last_scraped_block_number = *block_number;

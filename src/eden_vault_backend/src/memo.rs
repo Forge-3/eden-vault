@@ -114,10 +114,10 @@ impl From<&ReceivedEvent> for Memo {
 impl From<ReimbursementRequest> for MintMemo {
     fn from(reimbursement_request: ReimbursementRequest) -> Self {
         let helper: u128 = reimbursement_request
-        .ledger_burn_index
-        .0
-        .to_u128()
-        .expect("Conversion from Nat to u128 failed");
+            .ledger_burn_index
+            .0
+            .to_u128()
+            .expect("Conversion from Nat to u128 failed");
         match reimbursement_request.transaction_hash {
             Some(tx_hash) => MintMemo::ReimburseTransaction {
                 withdrawal_id: helper as u64,

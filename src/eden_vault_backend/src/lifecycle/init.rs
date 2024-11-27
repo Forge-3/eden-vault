@@ -19,8 +19,6 @@ pub struct InitArg {
     pub ecdsa_key_name: String,
     #[n(2)]
     pub ethereum_contract_address: Option<String>,
-    #[cbor(n(3), with = "crate::cbor::principal")]
-    pub ledger_id: Principal,
     #[n(4)]
     pub ethereum_block_height: CandidBlockTag,
     #[cbor(n(5), with = "crate::cbor::nat")]
@@ -44,7 +42,6 @@ impl TryFrom<InitArg> for State {
             ethereum_network,
             ecdsa_key_name,
             ethereum_contract_address,
-            ledger_id: _,
             ethereum_block_height,
             minimum_withdrawal_amount,
             next_transaction_nonce,
@@ -82,7 +79,7 @@ impl TryFrom<InitArg> for State {
 
         let ckerc20_token_address = Address::from_str(&ckerc20_token_address)
             .map_err(|e| InvalidStateError::InvalidCkErc20Address(format!("ERROR: {}", e)))?;
-    
+
         let ckerc20_token_symbol = CkTokenSymbol::from_str(&ckerc20_token_symbol)
             .map_err(|e| InvalidStateError::InvalidCkTokenSymbol(format!("ERROR: {}", e)))?;
 
@@ -111,7 +108,7 @@ impl TryFrom<InitArg> for State {
             evm_rpc_id: None,
             ckerc20_tokens: (ckerc20_token_address, ckerc20_token_symbol),
             erc20_balances: Default::default(),
-            withdraw_count: Nat::from(0u128)
+            withdraw_count: Nat::from(0u128),
         };
         state.validate_config()?;
         Ok(state)

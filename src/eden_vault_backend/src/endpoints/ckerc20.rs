@@ -7,7 +7,7 @@ pub struct WithdrawErc20Arg {
     pub recipient: String,
 }
 
-#[derive(CandidType,Debug, Clone, PartialEq, Eq)]
+#[derive(CandidType, Debug, Clone, PartialEq, Eq)]
 pub struct RetrieveErc20Request {
     pub max_transaction_fee: Nat,
     pub withdrawal_amount: Nat,
@@ -28,7 +28,6 @@ impl From<Erc20WithdrawalRequest> for RetrieveErc20Request {
             id: request.id.try_into().unwrap(),
         }
     }
-
 }
 
 #[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]

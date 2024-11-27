@@ -10,6 +10,7 @@ use crate::lifecycle::EthereumNetwork;
 use crate::logs::{PrintProxySink, DEBUG, INFO, TRACE_HTTP};
 use crate::numeric::{BlockNumber, GasAmount, LogIndex, TransactionCount, Wei, WeiPerGas};
 use crate::state::State;
+use candid::CandidType;
 use evm_rpc_client::{
     Block as EvmBlock, BlockTag as EvmBlockTag, ConsensusStrategy, EvmRpcClient,
     FeeHistory as EvmFeeHistory, FeeHistoryArgs as EvmFeeHistoryArgs,
@@ -22,11 +23,13 @@ use evm_rpc_client::{
 use ic_canister_log::log;
 use ic_ethereum_types::Address;
 use num_traits::ToPrimitive;
-use providers::LOCAL_PROVIDERS;
+use providers::{BSC_PROVIDERS, BSC_TESTNET_PROVIDERS, LOCAL_PROVIDERS};
+use serde::Deserialize;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::fmt::{Debug, Display};
+use minicbor::{Decode, Encode};
 
 mod providers;
 pub mod requests;
@@ -45,6 +48,84 @@ pub struct EthRpcClient {
     chain: EthereumNetwork,
 }
 
+#[derive(
+    Copy, Clone, Eq, PartialEq, Hash, Debug, Default, CandidType, Decode, Deserialize, Encode,
+)]
+#[cbor(index_only)]
+pub enum CustomEvmRpc {
+    #[n(31337)]
+    #[default]
+    Local,
+    #[n(97)]
+    BSCTestnet,
+    #[n(56)]
+    BSC
+}
+
+impl CustomEvmRpc {
+    pub fn chain_id(&self) -> u64 {
+        match self {
+            CustomEvmRpc::BSC => 56,
+            CustomEvmRpc::BSCTestnet => 97,
+            CustomEvmRpc::Local => 31337,
+        }
+    }
+    //EvmRpcServices
+
+    pub fn evm_rpc_service(&self, client: &mut EthRpcClient) -> evm_rpc_client::RpcServices {
+        use evm_rpc_client::RpcServices as EvmRpcServices;
+        use evm_rpc_client::RpcApi;
+        match self {
+            CustomEvmRpc::BSC => EvmRpcServices::Custom {
+                chain_id: client.chain.chain_id(),
+                services: [RpcApi {
+                    url: String::from("https://bsc-mainnet.public.blastapi.io"),
+                    headers: None,
+                }, RpcApi {
+                    url: String::from("https://bsc.blockpi.network/v1/rpc/public"),
+                    headers: None,
+                }, RpcApi {
+                    url: String::from("https://bsc.drpc.org"),
+                    headers: None,
+                }, RpcApi {
+                    url: String::from("https://bsc-rpc.publicnode.com"),
+                    headers: None,
+                }, RpcApi {
+                    url: String::from("https://binance.llamarpc.com"),
+                    headers: None,
+                }, ]
+                .to_vec(),
+            },
+            CustomEvmRpc::BSCTestnet => EvmRpcServices::Custom {
+                chain_id: client.chain.chain_id(),
+                services: [RpcApi {
+                    url: String::from("https://bsc-testnet.public.blastapi.io"),
+                    headers: None,
+                }, RpcApi {
+                    url: String::from("https://bsc-testnet.blockpi.network/v1/rpc/public"),
+                    headers: None,
+                }, RpcApi {
+                    url: String::from("https://bsc-testnet.drpc.org"),
+                    headers: None,
+                }, RpcApi {
+                    url: String::from("https://bsc-testnet-rpc.publicnode.com"),
+                    headers: None,
+                }]
+                .to_vec(),
+            },
+            CustomEvmRpc::Local => EvmRpcServices::Custom {
+                chain_id: client.chain.chain_id(),
+                services: [RpcApi {
+                    url: String::from("http://127.0.0.1:8545"),
+                    headers: None,
+                }]
+                .to_vec(),
+            },
+        }
+    }
+}
+
+
 impl EthRpcClient {
     const fn new(chain: EthereumNetwork) -> Self {
         Self {
@@ -59,19 +140,19 @@ impl EthRpcClient {
         let mut client = Self::new(state.ethereum_network());
         if let Some(evm_rpc_id) = state.evm_rpc_id {
             const MIN_ATTACHED_CYCLES: u128 = 500_000_000_000;
-
             let providers = match client.chain {
                 EthereumNetwork::Mainnet => EvmRpcServices::EthMainnet(None),
                 EthereumNetwork::Sepolia => EvmRpcServices::EthSepolia(None),
-                EthereumNetwork::Local => EvmRpcServices::Custom { chain_id: client.chain.chain_id(), services: [evm_rpc_client::RpcApi {
-                    url: String::from("http://127.0.0.1:8545"),
-                    headers: None,
-                }].to_vec() },
+                EthereumNetwork::BSC => CustomEvmRpc::BSC.evm_rpc_service(&mut client),
+                EthereumNetwork::BSCTestnet => CustomEvmRpc::BSCTestnet.evm_rpc_service(&mut client),
+                EthereumNetwork::Local => CustomEvmRpc::Local.evm_rpc_service(&mut client),
             };
             let min_threshold = match client.chain {
                 EthereumNetwork::Mainnet => 3_u8,
                 EthereumNetwork::Sepolia => 2_u8,
                 EthereumNetwork::Local => 1_u8,
+                EthereumNetwork::BSC=> 3_u8,
+                EthereumNetwork::BSCTestnet => 2_u8,
             };
             assert!(
                 min_threshold <= TOTAL_NUMBER_OF_PROVIDERS,
@@ -112,7 +193,9 @@ impl EthRpcClient {
         match self.chain {
             EthereumNetwork::Mainnet => &MAINNET_PROVIDERS,
             EthereumNetwork::Sepolia => &SEPOLIA_PROVIDERS,
-            EthereumNetwork::Local => &LOCAL_PROVIDERS
+            EthereumNetwork::Local => &LOCAL_PROVIDERS,
+            EthereumNetwork::BSC => &BSC_PROVIDERS,
+            EthereumNetwork::BSCTestnet => &BSC_TESTNET_PROVIDERS,
         }
     }
 
@@ -234,6 +317,8 @@ impl EthRpcClient {
             EthereumNetwork::Local => 12 * 1024,
             EthereumNetwork::Sepolia => 12 * 1024,
             EthereumNetwork::Mainnet => 24 * 1024,
+            EthereumNetwork::BSC => 24 * 1024,
+            EthereumNetwork::BSCTestnet => 24 * 1024,
         };
 
         let results: MultiCallResults<Block> = self

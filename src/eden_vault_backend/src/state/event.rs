@@ -2,7 +2,7 @@ use crate::eth_logs::{EventSource, ReceivedErc20Event, ReceivedEvent};
 use crate::eth_rpc_client::responses::TransactionReceipt;
 use crate::lifecycle::{init::InitArg, upgrade::UpgradeArg};
 use crate::numeric::{BlockNumber, Erc20Value};
-use crate::state::transactions::{ReimbursementIndex, Erc20WithdrawalRequest};
+use crate::state::transactions::{Erc20WithdrawalRequest, ReimbursementIndex};
 use crate::tx::{Eip1559TransactionRequest, SignedEip1559TransactionRequest};
 use candid::{Nat, Principal};
 use ic_ethereum_types::Address;

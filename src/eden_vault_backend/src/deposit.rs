@@ -14,9 +14,6 @@ use scopeguard::ScopeGuard;
 use std::cmp::{min, Ordering};
 use std::time::Duration;
 
-pub(crate) const RECEIVED_ETH_EVENT_TOPIC: [u8; 32] =
-    hex!("257e057bb61920d8d0ed2cb7b720ac7f9c513cd1110bc9fa543079154f45f435");
-
 pub(crate) const RECEIVED_ERC20_EVENT_TOPIC: [u8; 32] =
     hex!("4d69d0bd4287b7f66c548f90154dc81bc98f65a1b362775df5ae171a2ccd262b");
 
@@ -27,7 +24,7 @@ async fn mint() {
     };
 
     let events = read_state(|s| (s.events_to_mint()));
-    
+
     for event in events {
         // Ensure that even if we were to panic in the callback, after having contacted the ledger to mint the tokens,
         // this event will not be processed again.
@@ -42,12 +39,10 @@ async fn mint() {
             });
         });
         let token_symbol = match &event {
-            ReceivedEvent::Erc20(event) => {
-                read_state(|s| {
-                    assert!(s.ckerc20_tokens.0 == event.erc20_contract_address, "Failed to mint ckERC20: {event:?} Unsupported ERC20 contract address. (This should have already been filtered out by process_event)");
-                    s.ckerc20_tokens.1.to_string()
-                })
-            }
+            ReceivedEvent::Erc20(event) => read_state(|s| {
+                assert!(s.ckerc20_tokens.0 == event.erc20_contract_address, "Failed to mint ckERC20: {event:?} Unsupported ERC20 contract address. (This should have already been filtered out by process_event)");
+                s.ckerc20_tokens.1.to_string()
+            }),
         };
 
         let principal = event.principal();
@@ -57,7 +52,7 @@ async fn mint() {
             process_event(
                 s,
                 match &event {
-                      ReceivedEvent::Erc20(event) => EventType::MintedCkErc20 {
+                    ReceivedEvent::Erc20(event) => EventType::MintedCkErc20 {
                         event_source: event.source(),
                         principal,
                         amount,
@@ -258,8 +253,7 @@ async fn scrape_contract_logs<F>(
 }
 
 async fn scrape_erc20_logs(last_block_number: BlockNumber, max_block_spread: u16) {
-    let token_contract_address =
-        read_state(|s| s.ckerc20_tokens.0);
+    let token_contract_address = read_state(|s| s.ckerc20_tokens.0);
     scrape_contract_logs(
         &RECEIVED_ERC20_EVENT_TOPIC,
         "ERC-20",

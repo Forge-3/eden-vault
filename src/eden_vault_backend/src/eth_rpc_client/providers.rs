@@ -14,8 +14,22 @@ pub(crate) const SEPOLIA_PROVIDERS: [RpcNodeProvider; 4] = [
     RpcNodeProvider::Sepolia(SepoliaProvider::RpcSepolia),
 ];
 
-pub(crate) const LOCAL_PROVIDERS: [RpcNodeProvider; 1] = [
-    RpcNodeProvider::Local(LocalService::Local),
+pub(crate) const LOCAL_PROVIDERS: [RpcNodeProvider; 1] =
+    [RpcNodeProvider::Local(LocalService::Local)];
+
+pub(crate) const BSC_PROVIDERS: [RpcNodeProvider; 5] = [
+    RpcNodeProvider::BSC(BSCService::BlastApi),
+    RpcNodeProvider::BSC(BSCService::BlockPi),
+    RpcNodeProvider::BSC(BSCService::Drpc),
+    RpcNodeProvider::BSC(BSCService::PublicNode),
+    RpcNodeProvider::BSC(BSCService::LlamaRpc),
+];
+
+pub(crate) const BSC_TESTNET_PROVIDERS: [RpcNodeProvider; 4] = [
+    RpcNodeProvider::BSCTestnet(BSCTestnetService::BlastApi),
+    RpcNodeProvider::BSCTestnet(BSCTestnetService::BlockPi),
+    RpcNodeProvider::BSCTestnet(BSCTestnetService::Drpc),
+    RpcNodeProvider::BSCTestnet(BSCTestnetService::PublicNode),
 ];
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -24,6 +38,8 @@ pub(crate) enum RpcNodeProvider {
     Sepolia(SepoliaProvider),
     EvmRpc(EvmRpcService),
     Local(LocalService),
+    BSC(BSCService),
+    BSCTestnet(BSCTestnetService),
 }
 
 impl RpcNodeProvider {
@@ -33,6 +49,8 @@ impl RpcNodeProvider {
             Self::Ethereum(provider) => provider.ethereum_mainnet_endpoint_url(),
             Self::Sepolia(provider) => provider.ethereum_sepolia_endpoint_url(),
             Self::Local(provider) => provider.local_evm_endpoint_url(),
+            Self::BSC(provider) => provider.bsc_mainnet_endpoint_url(),
+            Self::BSCTestnet(provider) => provider.bsc_testnet_endpoint_url(),
             RpcNodeProvider::EvmRpc(_) => {
                 panic!("BUG: should not need URL of provider from EVM RPC canister")
             }
@@ -85,9 +103,58 @@ impl SepoliaProvider {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum BSCTestnetService {
+    // https://bsc-testnet.public.blastapi.io
+    BlastApi,
+    // https://bsc-testnet.blockpi.network/v1/rpc/public
+    BlockPi,
+    // https://bsc-testnet.drpc.org
+    Drpc,
+    // https://bsc-testnet-rpc.publicnode.com
+    PublicNode,
+}
+
+impl BSCTestnetService {
+    fn bsc_testnet_endpoint_url(&self) -> &str {
+        match self {
+            BSCTestnetService::BlastApi => "https://bsc-testnet.public.blastapi.io",
+            BSCTestnetService::BlockPi => "https://bsc-testnet.blockpi.network/v1/rpc/public",
+            BSCTestnetService::Drpc => "https://bsc-testnet.drpc.org",
+            BSCTestnetService::PublicNode => "https://bsc-testnet-rpc.publicnode.com",
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum BSCService {
+    // https://bsc-mainnet.public.blastapi.io
+    BlastApi,
+    // https://bsc.blockpi.network/v1/rpc/public
+    BlockPi,
+    // https://bsc.drpc.org
+    Drpc,
+    // https://bsc-rpc.publicnode.com
+    PublicNode,
+    // https://binance.llamarpc.com
+    LlamaRpc
+}
+
+impl BSCService {
+    fn bsc_mainnet_endpoint_url(&self) -> &str {
+        match self {
+            BSCService::BlastApi => "https://bsc-mainnet.public.blastapi.io",
+            BSCService::BlockPi => "https://bsc.blockpi.network/v1/rpc/public",
+            BSCService::Drpc => "https://bsc.drpc.org",
+            BSCService::PublicNode => "https://bsc-rpc.publicnode.com",
+            BSCService::LlamaRpc => "https://binance.llamarpc.com",
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum LocalService {
     // http://127.0.0.1:8545/
-    Local
+    Local,
 }
 
 impl LocalService {

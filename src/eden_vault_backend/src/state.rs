@@ -150,6 +150,8 @@ impl State {
             EthereumNetwork::Mainnet => Wei::new(2_000_000_000_000),
             EthereumNetwork::Sepolia => Wei::new(10_000_000_000),
             EthereumNetwork::Local => Wei::new(1_000_000_000),
+            EthereumNetwork::BSC => Wei::new(2_000_000_000_000),
+            EthereumNetwork::BSCTestnet => Wei::new(2_000_000_000_000),
         };
         if self.cketh_minimum_withdrawal_amount < cketh_ledger_transfer_fee {
             return Err(InvalidStateError::InvalidMinimumWithdrawalAmount(
@@ -181,12 +183,12 @@ impl State {
         );
         assert!(!self.minted_events.contains_key(&event_source));
         assert!(!self.invalid_events.contains_key(&event_source));
-        if let ReceivedEvent::Erc20(event) = event {
-            assert!(
-                self.ckerc20_tokens.0 == event.erc20_contract_address,
-                "BUG: unsupported ERC-20 contract address in event {event:?}"
-            )
-        }
+
+        let ReceivedEvent::Erc20(event_content) = event;
+        assert!(
+            self.ckerc20_tokens.0 == event_content.erc20_contract_address,
+            "BUG: unsupported ERC-20 contract address in event {event_content:?}"
+        );
 
         self.events_to_mint.insert(event_source, event.clone());
 
@@ -277,9 +279,7 @@ impl State {
 
     fn update_balance_upon_deposit(&mut self, event: &ReceivedEvent) {
         match event {
-            ReceivedEvent::Erc20(event) => self
-                .erc20_balances
-                .erc20_add(event.value),
+            ReceivedEvent::Erc20(event) => self.erc20_balances.erc20_add(event.value),
         };
     }
 
@@ -320,8 +320,7 @@ impl State {
                 tx.transaction_data(),
             )
             .expect("BUG: failed to decode transaction data from transaction issued by minter");
-            self.erc20_balances
-                .erc20_sub(value);
+            self.erc20_balances.erc20_sub(value);
         }
     }
 
@@ -406,12 +405,10 @@ impl State {
             }
         }
         if let (Some(address), Some(symbol)) = (ckerc20_token_address, ckerc20_token_symbol) {
-            let ckerc20_token_address = Address::from_str(&address).map_err(|e| {
-                InvalidStateError::InvalidCkErc20Address(format!("ERROR: {}", e))
-            })?;
-            let ckerc20_token_symbol = CkTokenSymbol::from_str(&symbol).map_err(|e| {
-                InvalidStateError::InvalidCkTokenSymbol(format!("ERROR: {}", e))
-            })?;
+            let ckerc20_token_address = Address::from_str(&address)
+                .map_err(|e| InvalidStateError::InvalidCkErc20Address(format!("ERROR: {}", e)))?;
+            let ckerc20_token_symbol = CkTokenSymbol::from_str(&symbol)
+                .map_err(|e| InvalidStateError::InvalidCkTokenSymbol(format!("ERROR: {}", e)))?;
 
             self.ckerc20_tokens = (ckerc20_token_address, ckerc20_token_symbol);
         }
@@ -629,7 +626,6 @@ impl Default for Erc20Balances {
 }
 
 impl Erc20Balances {
-
     pub fn get_erc20_balance(&self) -> Erc20Value {
         self.erc20_balance
     }
@@ -682,15 +678,12 @@ impl Erc20Balances {
     }
 
     pub fn erc20_add(&mut self, deposit: Erc20Value) {
-        self.erc20_balance = self
-            .erc20_balance
-            .checked_add(deposit)
-            .unwrap_or_else(|| {
-                panic!(
-                    "BUG: overflow when adding {} to {}",
-                    deposit, self.erc20_balance
-                )
-            });
+        self.erc20_balance = self.erc20_balance.checked_add(deposit).unwrap_or_else(|| {
+            panic!(
+                "BUG: overflow when adding {} to {}",
+                deposit, self.erc20_balance
+            )
+        });
     }
 
     pub fn erc20_sub(&mut self, withdrawal_amount: Erc20Value) {
@@ -704,7 +697,6 @@ impl Erc20Balances {
                 )
             });
     }
-
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, EnumIter)]

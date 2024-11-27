@@ -28,9 +28,13 @@ pub enum EthereumNetwork {
     Mainnet,
     #[n(11155111)]
     Sepolia,
+    #[n(56)]
+    BSC,
+    #[n(97)]
+    BSCTestnet,
     #[n(31337)]
     #[default]
-    Local
+    Local,
 }
 
 impl EthereumNetwork {
@@ -38,6 +42,8 @@ impl EthereumNetwork {
         match self {
             EthereumNetwork::Mainnet => 1,
             EthereumNetwork::Sepolia => 11155111,
+            EthereumNetwork::BSC => 97,
+            EthereumNetwork::BSCTestnet => 56,
             EthereumNetwork::Local => 31337,
         }
     }
@@ -60,6 +66,8 @@ impl Display for EthereumNetwork {
         match self {
             EthereumNetwork::Mainnet => write!(f, "Ethereum Mainnet"),
             EthereumNetwork::Sepolia => write!(f, "Ethereum Testnet Sepolia"),
+            EthereumNetwork::BSC => write!(f, "BSC"),
+            EthereumNetwork::BSCTestnet => write!(f, "BSC Testnet"),
             EthereumNetwork::Local => write!(f, "Local Testnet"),
         }
     }

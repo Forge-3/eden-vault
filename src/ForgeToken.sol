@@ -6,6 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
 contract ForgeToken is ERC20, ERC20Permit {
     constructor() ERC20("ForgeToken", "ckFT") ERC20Permit("ForgeToken") {
-        _mint(msg.sender, 1_000_000_000_000_000_000);
+        _mint(msg.sender, 1_000_000_000_000_000_000_000_000);
     }
 }

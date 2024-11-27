@@ -6,9 +6,7 @@ use crate::guard::TimerGuard;
 use crate::logs::{DEBUG, INFO};
 use crate::numeric::{GasAmount, TransactionCount};
 use crate::state::audit::{process_event, EventType};
-use crate::state::transactions::{
-    create_transaction, CreateTransactionError, WithdrawalRequest,
-};
+use crate::state::transactions::{create_transaction, CreateTransactionError, WithdrawalRequest};
 use crate::state::{mutate_state, read_state, State, TaskType};
 use crate::tx::{lazy_refresh_gas_fee_estimate, GasFeeEstimate};
 use candid::Nat;
