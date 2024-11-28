@@ -40,7 +40,7 @@ mod tests;
 
 // We expect most of the calls to contain zero events.
 const ETH_GET_LOGS_INITIAL_RESPONSE_SIZE_ESTIMATE: u64 = 100;
-const TOTAL_NUMBER_OF_PROVIDERS: u8 = 1;
+const TOTAL_NUMBER_OF_PROVIDERS: u8 = 2;
 
 #[derive(Debug)]
 pub struct EthRpcClient {
@@ -99,13 +99,7 @@ impl CustomEvmRpc {
             CustomEvmRpc::BSCTestnet => EvmRpcServices::Custom {
                 chain_id: client.chain.chain_id(),
                 services: [RpcApi {
-                    url: String::from("https://bsc-testnet.public.blastapi.io"),
-                    headers: None,
-                }, RpcApi {
                     url: String::from("https://bsc-testnet.blockpi.network/v1/rpc/public"),
-                    headers: None,
-                }, RpcApi {
-                    url: String::from("https://bsc-testnet.drpc.org"),
                     headers: None,
                 }, RpcApi {
                     url: String::from("https://bsc-testnet-rpc.publicnode.com"),

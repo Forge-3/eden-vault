@@ -1,0 +1,25 @@
+dfx canister call evm_rpc request '(variant {Custom=record {url="https://bsc-testnet-rpc.publicnode.com"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)'
+dfx canister call evm_rpc request '(variant {Custom=record {url="https://bsc-rpc.publicnode.com"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)'
+
+dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
+    ethereum_network = variant { BSCTestnet };
+    ecdsa_key_name = "test_key_1";
+    ethereum_contract_address = null;
+    ethereum_block_height = variant { Latest };
+    minimum_withdrawal_amount = 5_000_000_000_000;
+    next_transaction_nonce = 0;
+    last_scraped_block_number = 45994982;
+    admin = principal "42z5y-skeh6-5yq5k-37ixk-slrvz-e3jvs-3ftl7-7flrr-4swh6-wu5ea-kqe";
+    ckerc20_token_address = "0x890e77bA80f1D3f62Fe5d9259750f0C52F198b0f";
+    ckerc20_token_symbol = "ckFT";
+} })' --ic
+
+dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
+    next_transaction_nonce = opt 0;
+    minimum_withdrawal_amount = opt 5_000_000_000_000;
+    ethereum_block_height = opt variant { Latest };
+    erc20_helper_contract_address = opt "0xaDc4434fD98D5dA23Bc0DCd6C281BBE2E021D7c1";
+    last_erc20_scraped_block_number = opt 46002888;
+    ledger_suite_orchestrator_id = 0;
+    evm_rpc_id = opt principal "7hfb6-caaaa-aaaar-qadga-cai";
+} })' --upgrade-unchanged --ic

@@ -25,10 +25,8 @@ pub(crate) const BSC_PROVIDERS: [RpcNodeProvider; 5] = [
     RpcNodeProvider::BSC(BSCService::LlamaRpc),
 ];
 
-pub(crate) const BSC_TESTNET_PROVIDERS: [RpcNodeProvider; 4] = [
-    RpcNodeProvider::BSCTestnet(BSCTestnetService::BlastApi),
+pub(crate) const BSC_TESTNET_PROVIDERS: [RpcNodeProvider; 2] = [
     RpcNodeProvider::BSCTestnet(BSCTestnetService::BlockPi),
-    RpcNodeProvider::BSCTestnet(BSCTestnetService::Drpc),
     RpcNodeProvider::BSCTestnet(BSCTestnetService::PublicNode),
 ];
 
@@ -104,12 +102,8 @@ impl SepoliaProvider {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum BSCTestnetService {
-    // https://bsc-testnet.public.blastapi.io
-    BlastApi,
     // https://bsc-testnet.blockpi.network/v1/rpc/public
     BlockPi,
-    // https://bsc-testnet.drpc.org
-    Drpc,
     // https://bsc-testnet-rpc.publicnode.com
     PublicNode,
 }
@@ -117,9 +111,7 @@ pub(crate) enum BSCTestnetService {
 impl BSCTestnetService {
     fn bsc_testnet_endpoint_url(&self) -> &str {
         match self {
-            BSCTestnetService::BlastApi => "https://bsc-testnet.public.blastapi.io",
             BSCTestnetService::BlockPi => "https://bsc-testnet.blockpi.network/v1/rpc/public",
-            BSCTestnetService::Drpc => "https://bsc-testnet.drpc.org",
             BSCTestnetService::PublicNode => "https://bsc-testnet-rpc.publicnode.com",
         }
     }
