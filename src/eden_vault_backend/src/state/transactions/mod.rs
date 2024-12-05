@@ -217,6 +217,12 @@ pub enum ReimbursedError {
 #[cbor(transparent)]
 pub struct Subaccount(#[cbor(n(0), with = "minicbor::bytes")] pub [u8; 32]);
 
+impl Subaccount {
+    pub fn to_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
 impl fmt::Debug for Subaccount {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", hex::encode(self.0))

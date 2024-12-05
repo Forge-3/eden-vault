@@ -6,15 +6,17 @@ use eden_vault_backend::deposit::scrape_logs;
 use eden_vault_backend::endpoints::ckerc20::{
     RetrieveErc20Request, WithdrawErc20Arg, WithdrawErc20Error,
 };
+use eden_vault_backend::endpoints::events::{GetEventsArg, GetEventsResult};
 use eden_vault_backend::endpoints::{
     RetrieveEthStatus, WithdrawalDetail, WithdrawalSearchParameter,
 };
+use eden_vault_backend::eth_logs::{EventSource, ReceivedErc20Event};
 use eden_vault_backend::guard::retrieve_withdraw_guard;
 use eden_vault_backend::lifecycle::MinterArg;
 use eden_vault_backend::logs::INFO;
 use eden_vault_backend::numeric::{Erc20Tag, Erc20Value, LedgerBurnIndex, Wei};
-use eden_vault_backend::state::audit::{process_event, EventType};
-use eden_vault_backend::state::transactions::Erc20WithdrawalRequest;
+use eden_vault_backend::state::audit::{process_event, EventType, Event};
+use eden_vault_backend::state::transactions::{Erc20WithdrawalRequest, ReimbursementIndex, Subaccount};
 use eden_vault_backend::state::{
     lazy_call_ecdsa_public_key, mutate_state, read_state, transactions, State, STATE,
 };
@@ -246,6 +248,205 @@ async fn get_canister_status() -> ic_cdk::api::management_canister::main::Canist
     .0
 }
 
+#[query]
+fn get_events(arg: GetEventsArg) -> GetEventsResult {
+    use eden_vault_backend::endpoints::events::{
+        AccessListItem, ReimbursementIndex as CandidReimbursementIndex,
+        TransactionReceipt as CandidTransactionReceipt,
+        TransactionStatus as CandidTransactionStatus, UnsignedTransaction,
+        Event as CandidEvent,
+    };
+    use eden_vault_backend::eth_rpc_client::responses::TransactionReceipt;
+    use eden_vault_backend::tx::Eip1559TransactionRequest;
+    use serde_bytes::ByteBuf;
+    use eden_vault_backend::endpoints::events::EventSource as CandidEventSource;
+
+    const MAX_EVENTS_PER_RESPONSE: u64 = 100;
+
+    fn map_event_source(
+        EventSource {
+            transaction_hash,
+            log_index,
+        }: EventSource,
+    ) -> CandidEventSource {
+        CandidEventSource {
+            transaction_hash: transaction_hash.to_string(),
+            log_index: log_index.into(),
+        }
+    }
+
+    fn map_reimbursement_index(index: ReimbursementIndex) -> CandidReimbursementIndex {
+        match index {
+            ReimbursementIndex::CkErc20 {
+                withdrawal_id,
+            } => CandidReimbursementIndex::CkErc20 {
+                withdrawal_id,
+
+            },
+        }
+    }
+
+    fn map_unsigned_transaction(tx: Eip1559TransactionRequest) -> UnsignedTransaction {
+        UnsignedTransaction {
+            chain_id: tx.chain_id.into(),
+            nonce: tx.nonce.into(),
+            max_priority_fee_per_gas: tx.max_priority_fee_per_gas.into(),
+            max_fee_per_gas: tx.max_fee_per_gas.into(),
+            gas_limit: tx.gas_limit.into(),
+            destination: tx.destination.to_string(),
+            value: tx.amount.into(),
+            data: ByteBuf::from(tx.data),
+            access_list: tx
+                .access_list
+                .0
+                .iter()
+                .map(|item| AccessListItem {
+                    address: item.address.to_string(),
+                    storage_keys: item
+                        .storage_keys
+                        .iter()
+                        .map(|key| ByteBuf::from(key.0.to_vec()))
+                        .collect(),
+                })
+                .collect(),
+        }
+    }
+
+    fn map_transaction_receipt(receipt: TransactionReceipt) -> CandidTransactionReceipt {
+        use eden_vault_backend::eth_rpc_client::responses::TransactionStatus;
+        CandidTransactionReceipt {
+            block_hash: receipt.block_hash.to_string(),
+            block_number: receipt.block_number.into(),
+            effective_gas_price: receipt.effective_gas_price.into(),
+            gas_used: receipt.gas_used.into(),
+            status: match receipt.status {
+                TransactionStatus::Success => CandidTransactionStatus::Success,
+                TransactionStatus::Failure => CandidTransactionStatus::Failure,
+            },
+            transaction_hash: receipt.transaction_hash.to_string(),
+        }
+    }
+
+    fn map_event(Event { timestamp, payload }: Event) -> CandidEvent {
+        use eden_vault_backend::endpoints::events::EventPayload as EP;
+        CandidEvent {
+            timestamp,
+            payload : match payload {
+                EventType::Init(args) => EP::Init(args),
+                EventType::Upgrade(args) => EP::Upgrade(args),
+                EventType::AcceptedErc20Deposit(ReceivedErc20Event {
+                    transaction_hash,
+                    block_number,
+                    log_index,
+                    from_address,
+                    value,
+                    principal,
+                    erc20_contract_address,
+                }) => EP::AcceptedErc20Deposit {
+                    transaction_hash: transaction_hash.to_string(),
+                    block_number: block_number.into(),
+                    log_index: log_index.into(),
+                    from_address: from_address.to_string(),
+                    value: value.into(),
+                    principal,
+                    erc20_contract_address: erc20_contract_address.to_string(),
+                },
+                EventType::InvalidDeposit {
+                    event_source,
+                    reason,
+                } => EP::InvalidDeposit {
+                    event_source: map_event_source(event_source),
+                    reason,
+                },
+                EventType::SyncedToBlock { block_number } => EP::SyncedToBlock {
+                    block_number: block_number.into(),
+                },
+                EventType::SyncedErc20ToBlock { block_number } => EP::SyncedErc20ToBlock {
+                    block_number: block_number.into(),
+                },
+                EventType::CreatedTransaction {
+                    withdrawal_id,
+                    transaction,
+                } => EP::CreatedTransaction {
+                    withdrawal_id,
+                    transaction: map_unsigned_transaction(transaction),
+                },
+                EventType::SignedTransaction {
+                    withdrawal_id,
+                    transaction,
+                } => EP::SignedTransaction {
+                    withdrawal_id,
+                    raw_transaction: transaction.raw_transaction_hex(),
+                },
+                EventType::ReplacedTransaction {
+                    withdrawal_id,
+                    transaction,
+                } => EP::ReplacedTransaction {
+                    withdrawal_id,
+                    transaction: map_unsigned_transaction(transaction),
+                },
+                EventType::FinalizedTransaction {
+                    withdrawal_id,
+                    transaction_receipt,
+                } => EP::FinalizedTransaction {
+                    withdrawal_id,
+                    transaction_receipt: map_transaction_receipt(transaction_receipt),
+                },
+                EventType::SkippedBlockForContract {
+                    contract_address,
+                    block_number,
+                } => EP::SkippedBlock {
+                    contract_address: Some(contract_address.to_string()),
+                    block_number: block_number.into(),
+                },
+                EventType::AcceptedErc20WithdrawalRequest(Erc20WithdrawalRequest {
+                    max_transaction_fee,
+                    withdrawal_amount,
+                    destination,
+                    from,
+                    from_subaccount,
+                    created_at,
+                    id
+                }) => EP::AcceptedErc20WithdrawalRequest {
+                    max_transaction_fee: max_transaction_fee.into(),
+                    withdrawal_amount: withdrawal_amount.into(),
+                    destination: destination.to_string(),
+                    from,
+                    from_subaccount: from_subaccount.map(Subaccount::to_bytes),
+                    created_at,
+                },
+                EventType::MintedCkErc20 {
+                    event_source,
+                    principal,
+                    amount,
+                } => EP::MintedCkErc20 {
+                    event_source: map_event_source(event_source),
+                    principal,
+                    amount: amount.into()
+                },
+                EventType::QuarantinedDeposit { event_source } => EP::QuarantinedDeposit {
+                    event_source: map_event_source(event_source),
+                },
+                EventType::QuarantinedReimbursement { index } => EP::QuarantinedReimbursement {
+                    index: map_reimbursement_index(index),
+                },
+            },
+        }
+    }
+
+    let events = storage::with_event_iter(|it| {
+        it.skip(arg.start as usize)
+            .take(arg.length.min(MAX_EVENTS_PER_RESPONSE) as usize)
+            .map(map_event)
+            .collect()
+    });
+
+    GetEventsResult {
+        events,
+        total_event_count: storage::total_event_count(),
+    }
+}
+
 #[cfg(feature = "debug_checks")]
 #[query]
 fn check_audit_log() {
@@ -378,6 +579,13 @@ async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<String, Stri
             .principal_erc20_add(receiver, checked_amount);
         Ok("Transfer succeded.".to_string())
     })
+}
+
+#[query]
+async fn smart_contract_address() -> String {
+    read_state(|s| s.erc20_helper_contract_address.clone())
+    .map(|a| a.to_string())
+    .unwrap_or("N/A".to_string())
 }
 
 ic_cdk::export_candid!();

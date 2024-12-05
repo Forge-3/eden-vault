@@ -31,10 +31,10 @@ use serde_bytes::ByteBuf;
 use std::time::Duration;
 
 pub const MAIN_DERIVATION_PATH: Vec<ByteBuf> = vec![];
-// Dev mode: 30
+// DEV: mode: 30
 // Mainnet mode: 3 * 60
 pub const SCRAPING_ETH_LOGS_INTERVAL: Duration = Duration::from_secs(3 * 60);
-// Dev mode: 30
+// DEV: mode: 30
 // Mainnet mode: 6 * 60
 pub const PROCESS_ETH_RETRIEVE_TRANSACTIONS_INTERVAL: Duration = Duration::from_secs(6 * 60);
 pub const PROCESS_ETH_RETRIEVE_TRANSACTIONS_RETRY_INTERVAL: Duration = Duration::from_secs(3 * 60);

@@ -289,9 +289,7 @@ pub mod events {
             ledger_burn_index: Nat,
         },
         CkErc20 {
-            cketh_ledger_burn_index: Nat,
-            ledger_id: Principal,
-            ckerc20_ledger_burn_index: Nat,
+            withdrawal_id: Nat,
         },
     }
 
@@ -402,20 +400,15 @@ pub mod events {
         AcceptedErc20WithdrawalRequest {
             max_transaction_fee: Nat,
             withdrawal_amount: Nat,
-            erc20_contract_address: String,
             destination: String,
-            cketh_ledger_burn_index: Nat,
-            ckerc20_ledger_id: Principal,
-            ckerc20_ledger_burn_index: Nat,
             from: Principal,
             from_subaccount: Option<[u8; 32]>,
             created_at: u64,
         },
         MintedCkErc20 {
             event_source: EventSource,
-            mint_block_index: Nat,
-            ckerc20_token_symbol: String,
-            erc20_contract_address: String,
+            principal: Principal,
+            amount: Nat,
         },
         QuarantinedDeposit {
             event_source: EventSource,
