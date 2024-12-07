@@ -432,6 +432,11 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                 EventType::QuarantinedReimbursement { index } => EP::QuarantinedReimbursement {
                     index: map_reimbursement_index(index),
                 },
+                EventType::Erc20TransferCompleted { from, to, amount } => EP::Erc20TransferCompleted {
+                    from,
+                    to,
+                    amount: amount.into(),
+                },
             },
         }
     }
@@ -579,6 +584,16 @@ async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<String, Stri
         s.erc20_balances.principal_erc20_sub(caller, checked_amount);
         s.erc20_balances
             .principal_erc20_add(receiver, checked_amount);
+
+        process_event(
+            s,
+            EventType::Erc20TransferCompleted {
+                from: caller,
+                to: receiver,
+                amount: checked_amount.into(),
+            },
+        );
+
         Ok("Transfer succeded.".to_string())
     })
 }

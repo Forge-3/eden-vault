@@ -394,5 +394,10 @@ pub mod events {
         QuarantinedReimbursement {
             index: ReimbursementIndex,
         },
+        Erc20TransferCompleted {
+            from: Principal,
+            to: Principal,
+            amount: Nat,
+        },
     }
 }

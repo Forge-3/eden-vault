@@ -44,6 +44,11 @@ type EventPayload = variant {
   Upgrade : UpgradeArg;
   Init : InitArg;
   QuarantinedDeposit : record { event_source : EventSource };
+  Erc20TransferCompleted : record {
+    to : principal;
+    from : principal;
+    amount : nat;
+  };
   SyncedToBlock : record { block_number : nat };
   ReplacedTransaction : record {
     withdrawal_id : nat;

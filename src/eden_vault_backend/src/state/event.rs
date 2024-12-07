@@ -122,6 +122,16 @@ pub enum EventType {
         #[n(1)]
         block_number: BlockNumber,
     },
+    ///The transfer completed successfully.
+    #[n(25)]
+    Erc20TransferCompleted {
+        #[cbor(n(0), with = "crate::cbor::principal")]
+        from: Principal,
+        #[cbor(n(1), with = "crate::cbor::principal")]
+        to: Principal,
+        #[n(2)]
+        amount: Erc20Value,
+    },
 }
 
 impl ReceivedEvent {
