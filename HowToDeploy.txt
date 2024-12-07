@@ -13,11 +13,11 @@ dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     ckerc20_token_symbol = "ckFT";
 } })' --ic
 
-dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
+dfx deploy --argument='(variant { UpgradeArg = record {
     next_transaction_nonce = opt 0;
     minimum_withdrawal_amount = opt 5_000_000_000_000;
     ethereum_block_height = opt variant { Latest };
     erc20_helper_contract_address = opt "0xaDc4434fD98D5dA23Bc0DCd6C281BBE2E021D7c1";
-    last_erc20_scraped_block_number = opt 46002888;
+    last_erc20_scraped_block_number = opt 46211711;
     evm_rpc_id = opt principal "7hfb6-caaaa-aaaar-qadga-cai";
-} })' --upgrade-unchanged --ic
+} })' --upgrade-unchanged --network ic eden_vault_backend

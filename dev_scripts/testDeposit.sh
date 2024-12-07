@@ -1,3 +1,5 @@
+source ./dev_scripts/config.sh
+
 cast send $FORGE_TOKEN_ADDRESS \
     --rpc-url $EVM_RPC_URL \
     --private-key $ALICE_PRIVATE_KEY \

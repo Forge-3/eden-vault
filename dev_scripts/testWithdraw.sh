@@ -1,5 +1,7 @@
+source ./dev_scripts/config.sh
+
 dfx canister call eden_vault_backend withdraw_erc20 '(record {
-	recipient = "'"$BOB_PUB_KEY"'";
+	recipient = "'"$ALICE_PUB_KEY"'";
 	amount = 100000000000
 })'
 

@@ -123,7 +123,7 @@ async fn retrieve_eth_status(block_index: u64) -> RetrieveEthStatus {
 }
 
 #[query]
-async fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<WithdrawalDetail> {
+fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<WithdrawalDetail> {
     use transactions::WithdrawalRequest::*;
     let parameter = transactions::WithdrawalSearchParameter::try_from(parameter).unwrap();
     read_state(|s| {
@@ -389,6 +389,7 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     withdrawal_id,
                     transaction_receipt,
                 } => EP::FinalizedTransaction {
+                    details: withdrawal_status(WithdrawalSearchParameter::ByWithdrawalId(withdrawal_id.clone())),
                     withdrawal_id,
                     transaction_receipt: map_transaction_receipt(transaction_receipt),
                 },
@@ -414,6 +415,7 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     from,
                     from_subaccount: from_subaccount.map(Subaccount::to_bytes),
                     created_at,
+                    withdrawal_id: id
                 },
                 EventType::MintedCkErc20 {
                     event_source,

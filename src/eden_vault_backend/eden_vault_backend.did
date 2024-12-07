@@ -43,28 +43,13 @@ type EventPayload = variant {
   SignedTransaction : record { raw_transaction : text; withdrawal_id : nat };
   Upgrade : UpgradeArg;
   Init : InitArg;
-  AddedCkErc20Token : record {
-    ckerc20_ledger_id : principal;
-    chain_id : nat;
-    address : text;
-    ckerc20_token_symbol : text;
-  };
   QuarantinedDeposit : record { event_source : EventSource };
   SyncedToBlock : record { block_number : nat };
-  AcceptedDeposit : record {
-    "principal" : principal;
-    transaction_hash : text;
-    value : nat;
-    log_index : nat;
-    block_number : nat;
-    from_address : text;
-  };
   ReplacedTransaction : record {
     withdrawal_id : nat;
     transaction : UnsignedTransaction;
   };
   QuarantinedReimbursement : record { index : ReimbursementIndex };
-  MintedCkEth : record { event_source : EventSource; mint_block_index : nat };
   MintedCkErc20 : record {
     "principal" : principal;
     event_source : EventSource;
@@ -79,22 +64,16 @@ type EventPayload = variant {
   AcceptedErc20WithdrawalRequest : record {
     destination : text;
     withdrawal_amount : nat;
+    withdrawal_id : nat;
     from : principal;
     created_at : nat64;
     from_subaccount : opt blob;
     max_transaction_fee : nat;
   };
-  AcceptedEthWithdrawalRequest : record {
-    ledger_burn_index : nat;
-    destination : text;
-    withdrawal_amount : nat;
-    from : principal;
-    created_at : opt nat64;
-    from_subaccount : opt blob;
-  };
   FinalizedTransaction : record {
     withdrawal_id : nat;
     transaction_receipt : TransactionReceipt;
+    details : vec WithdrawalDetail;
   };
 };
 type EventSource = record { transaction_hash : text; log_index : nat };

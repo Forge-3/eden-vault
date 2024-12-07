@@ -259,6 +259,8 @@ pub mod events {
     use candid::{CandidType, Deserialize, Nat, Principal};
     use serde_bytes::ByteBuf;
 
+    use super::WithdrawalDetail;
+
     #[derive(Clone, Debug, CandidType, Deserialize)]
     pub struct GetEventsArg {
         pub start: u64,
@@ -332,14 +334,6 @@ pub mod events {
     pub enum EventPayload {
         Init(InitArg),
         Upgrade(UpgradeArg),
-        AcceptedDeposit {
-            transaction_hash: String,
-            block_number: Nat,
-            log_index: Nat,
-            from_address: String,
-            value: Nat,
-            principal: Principal,
-        },
         AcceptedErc20Deposit {
             transaction_hash: String,
             block_number: Nat,
@@ -353,23 +347,11 @@ pub mod events {
             event_source: EventSource,
             reason: String,
         },
-        MintedCkEth {
-            event_source: EventSource,
-            mint_block_index: Nat,
-        },
         SyncedToBlock {
             block_number: Nat,
         },
         SyncedErc20ToBlock {
             block_number: Nat,
-        },
-        AcceptedEthWithdrawalRequest {
-            withdrawal_amount: Nat,
-            destination: String,
-            ledger_burn_index: Nat,
-            from: Principal,
-            from_subaccount: Option<[u8; 32]>,
-            created_at: Option<u64>,
         },
         CreatedTransaction {
             withdrawal_id: Nat,
@@ -386,16 +368,11 @@ pub mod events {
         FinalizedTransaction {
             withdrawal_id: Nat,
             transaction_receipt: TransactionReceipt,
+            details: Vec<WithdrawalDetail>
         },
         SkippedBlock {
             contract_address: Option<String>,
             block_number: Nat,
-        },
-        AddedCkErc20Token {
-            chain_id: Nat,
-            address: String,
-            ckerc20_token_symbol: String,
-            ckerc20_ledger_id: Principal,
         },
         AcceptedErc20WithdrawalRequest {
             max_transaction_fee: Nat,
@@ -404,6 +381,7 @@ pub mod events {
             from: Principal,
             from_subaccount: Option<[u8; 32]>,
             created_at: u64,
+            withdrawal_id: Nat
         },
         MintedCkErc20 {
             event_source: EventSource,

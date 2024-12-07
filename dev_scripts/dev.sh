@@ -3,12 +3,13 @@ source ./dev_scripts/config.sh
 dfx killall
 pkill anvil
 pkill gnome-terminal
+sleep 6s
 
 gnome-terminal \
     --tab --title="Anvil - EVM blockchain" -- bash -c "anvil --block-time 3; exec bash" 
 gnome-terminal \
     --tab --title="DFX - IC blockchain" -- bash -c "dfx start --clean; exec bash"
-sleep 12s
+sleep 6s
 
 dfx canister create eden_vault_backend
 dfx canister create evm_rpc
@@ -19,6 +20,7 @@ FORGE_TOKEN_ADDRESS=$(echo "$FORGE_TOKEN_DEPLOY_OUTPUT" | grep -oE "Deployed to:
 export FORGE_TOKEN_ADDRESS
 
 dfx deploy evm_rpc --argument '(record {})'
+set -o allexport; source .env; set +o allexport
 
 dfx canister call evm_rpc request "(variant {Custom=record {url=\"http://$EVM_RPC_URL\"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)" --wallet $(dfx identity get-wallet) --with-cycles 1000000000
 
