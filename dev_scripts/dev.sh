@@ -54,6 +54,7 @@ dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
     erc20_helper_contract_address = opt "'"$CK_ERC20_DEPOSIT_ADDRESS"'";
     last_erc20_scraped_block_number = null;
     evm_rpc_id = opt principal "'"$CANISTER_ID_EVM_RPC"'";
+    withdraw_fee_value = opt 4_000_000;
 } })' --upgrade-unchanged
 
 cast send $MINTER_ADDRESS --value 100ether --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY

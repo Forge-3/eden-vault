@@ -91,6 +91,8 @@ pub struct State {
     pub ckerc20_tokens: (Address, CkTokenSymbol),
 
     pub withdraw_count: Nat,
+
+    pub withdraw_fee_value: Erc20Value,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -105,6 +107,8 @@ pub enum InvalidStateError {
     InvalidLastErc20ScrapedBlockNumber(String),
     InvalidCkErc20Address(String),
     InvalidCkTokenSymbol(String),
+    InvalidWithdrawFeeValue(String),
+    InvalidWithdrawalFeeValue(String),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -288,7 +292,7 @@ impl State {
         withdrawal_id: &Nat,
         receipt: &TransactionReceipt,
     ) {
-        let tx_fee = receipt.effective_transaction_fee();
+        // let tx_fee = receipt.effective_transaction_fee();
         let tx = self
             .eth_transactions
             .get_finalized_transaction(withdrawal_id)
@@ -297,23 +301,41 @@ impl State {
             .eth_transactions
             .get_processed_withdrawal_request(withdrawal_id)
             .expect("BUG: missing withdrawal request");
-        let charged_tx_fee = match withdrawal_request {
-            WithdrawalRequest::CkErc20(req) => req.max_transaction_fee,
+        // let charged_tx_fee = match withdrawal_request {
+        //     WithdrawalRequest::CkErc20(req) => req.max_transaction_fee,
+        // };
+        // let unspent_tx_fee = charged_tx_fee.checked_sub(tx_fee).expect(
+        //     "BUG: charged transaction fee MUST always be at least the effective transaction fee",
+        // );
+        // let debited_amount = match receipt.status {
+        //     TransactionStatus::Success => tx
+        //         .transaction()
+        //         .amount
+        //         .checked_add(tx_fee)
+        //         .expect("BUG: debited amount always fits into U256"),
+        //     TransactionStatus::Failure => tx_fee,
+        // };
+        // // self.eth_balance.eth_balance_sub(debited_amount);
+        // self.eth_balance.total_effective_tx_fees_add(tx_fee);
+        // self.eth_balance.total_unspent_tx_fees_add(unspent_tx_fee);
+
+        // if receipt.status == TransactionStatus::Success && !tx.transaction_data().is_empty() {
+        //     let TransactionCallData::Erc20Transfer { to: _, value } = TransactionCallData::decode(
+        //         tx.transaction_data(),
+        //     )
+        //     .expect("BUG: failed to decode transaction data from transaction issued by minter");
+        //     self.erc20_balances.erc20_sub(value);
+        // }
+        
+        let caller_principal = match withdrawal_request {
+            WithdrawalRequest::CkErc20(ref request) => request.from,
         };
-        let unspent_tx_fee = charged_tx_fee.checked_sub(tx_fee).expect(
-            "BUG: charged transaction fee MUST always be at least the effective transaction fee",
-        );
-        let debited_amount = match receipt.status {
-            TransactionStatus::Success => tx
-                .transaction()
-                .amount
-                .checked_add(tx_fee)
-                .expect("BUG: debited amount always fits into U256"),
-            TransactionStatus::Failure => tx_fee,
-        };
-        // self.eth_balance.eth_balance_sub(debited_amount);
-        self.eth_balance.total_effective_tx_fees_add(tx_fee);
-        self.eth_balance.total_unspent_tx_fees_add(unspent_tx_fee);
+        let withdraw_fee = self.withdraw_fee_value.clone(); 
+
+        self.erc20_balances
+        .principal_erc20_sub(caller_principal, withdraw_fee);
+        self.erc20_balances
+        .principal_erc20_add(self.admin.clone(), withdraw_fee);
 
         if receipt.status == TransactionStatus::Success && !tx.transaction_data().is_empty() {
             let TransactionCallData::Erc20Transfer { to: _, value } = TransactionCallData::decode(
@@ -369,6 +391,7 @@ impl State {
             evm_rpc_id,
             ckerc20_token_address,
             ckerc20_token_symbol,
+            withdraw_fee_value,
         } = upgrade_args;
 
         if let Some(nonce) = next_transaction_nonce {
@@ -412,7 +435,11 @@ impl State {
 
             self.ckerc20_tokens = (ckerc20_token_address, ckerc20_token_symbol);
         }
-
+        if let Some(fee_value) = withdraw_fee_value {
+            self.withdraw_fee_value = Erc20Value::try_from(fee_value)
+                .map_err(|e| InvalidStateError::InvalidWithdrawFeeValue(format!("ERROR: {}", e)))?;
+        }
+        
         self.validate_config()
     }
 

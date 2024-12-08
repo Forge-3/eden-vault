@@ -91,6 +91,7 @@ type InitArg = record {
   ecdsa_key_name : text;
   next_transaction_nonce : nat;
   ckerc20_token_address : text;
+  withdraw_fee_value : opt nat;
   ethereum_contract_address : opt text;
   minimum_withdrawal_amount : nat;
   ethereum_block_height : CandidBlockTag;
@@ -184,6 +185,7 @@ type UpgradeArg = record {
   ckerc20_token_address : opt text;
   erc20_helper_contract_address : opt text;
   last_erc20_scraped_block_number : opt nat;
+  withdraw_fee_value : opt nat;
   minimum_withdrawal_amount : opt nat;
   ethereum_block_height : opt CandidBlockTag;
   ckerc20_token_symbol : opt text;
@@ -195,6 +197,7 @@ type WithdrawErc20Error = variant {
   CkErc20LedgerError : record { error : LedgerError; cketh_block_index : nat };
   CkEthLedgerError : record { error : LedgerError };
   RecipientAddressBlocked : record { address : text };
+  InsufficientFunds : record { available : nat; required : nat };
 };
 type WithdrawalDetail = record {
   status : WithdrawalStatus;

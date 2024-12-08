@@ -14,7 +14,7 @@ use eden_vault_backend::eth_logs::{EventSource, ReceivedErc20Event};
 use eden_vault_backend::guard::retrieve_withdraw_guard;
 use eden_vault_backend::lifecycle::MinterArg;
 use eden_vault_backend::logs::INFO;
-use eden_vault_backend::numeric::{Erc20Tag, Erc20Value, LedgerBurnIndex, Wei};
+use eden_vault_backend::numeric::{Erc20Value, Erc20Tag, Wei, LedgerBurnIndex};
 use eden_vault_backend::state::audit::{process_event, EventType, Event};
 use eden_vault_backend::state::transactions::{Erc20WithdrawalRequest, ReimbursementIndex, Subaccount};
 use eden_vault_backend::state::{
@@ -176,7 +176,21 @@ async fn withdraw_erc20(
     let ckerc20_withdrawal_amount =
         Erc20Value::try_from(amount).expect("ERROR: failed to convert Nat to u256");
 
-    // TODO add withdraw fee
+    let withdraw_fee = read_state(|s| s.withdraw_fee_value.clone());
+    let withdraw_fee = Erc20Value::try_from(withdraw_fee).expect("ERROR: failed to convert Nat to u256");
+
+    let total_amount_needed = ckerc20_withdrawal_amount
+    .checked_add(withdraw_fee)
+    .expect("BUG: Overflow when calculating total amount needed");
+
+    let caller_balance = read_state(|s| s.erc20_balances.balance_of(&caller));
+    if caller_balance < total_amount_needed {
+        return Err(WithdrawErc20Error::InsufficientFunds {
+            available: Nat::from(caller_balance),
+            required: Nat::from(total_amount_needed),
+        });
+    }
+
     let ckerc20_tokens = read_state(|s| s.ckerc20_tokens.clone());
     log!(
         INFO,
@@ -577,7 +591,6 @@ async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<String, Stri
     mutate_state(|s| {
         let caller_balance = s.erc20_balances.balance_of(&caller);
         if caller_balance < checked_amount {
-            ic_cdk::trap("ERROR: Insufficient balance");
             return Err("ERROR: Insufficient balance".to_string());
         }
 

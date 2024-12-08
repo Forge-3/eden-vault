@@ -26,6 +26,8 @@ pub struct UpgradeArg {
     pub ckerc20_token_address: Option<String>,
     #[n(9)]
     pub ckerc20_token_symbol: Option<String>,
+    #[cbor(n(10), with = "crate::cbor::nat::option")]
+    pub withdraw_fee_value: Option<Nat>,
 }
 
 pub fn post_upgrade(upgrade_args: Option<UpgradeArg>) {

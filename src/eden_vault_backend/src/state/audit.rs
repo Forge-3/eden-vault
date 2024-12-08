@@ -4,7 +4,6 @@ mod tests;
 pub use super::event::{Event, EventType};
 use super::State;
 use crate::storage::{record_event, with_event_iter};
-use candid:: Principal;
 use ic_canister_log::log;
 use crate::logs::INFO;
 /// Updates the state to reflect the given state transition.

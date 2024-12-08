@@ -46,6 +46,10 @@ pub enum WithdrawErc20Error {
         error: LedgerError,
     },
     TemporarilyUnavailable(String),
+    InsufficientFunds { 
+        available: Nat,
+        required: Nat,
+    },
 }
 
 #[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]
