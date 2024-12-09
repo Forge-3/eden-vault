@@ -25,7 +25,7 @@ describe("E2E", () => {
 
     const minterAddress = process.env.MINTER_ADDRESS;
     const ckErc20DepositAddress = process.env.CK_ERC20_DEPOSIT_ADDRESS
-    const forgeTokenAddress = process.env.FORGE_TOKEN_ADDRESS
+    const forgeTokenAddress = process.env.EDEN_TOKEN_ADDRESS
 
     console.log("MINTER_ADDRESS adderess", minterAddress)
     console.log("CK_ERC20_DEPOSIT adderess", ckErc20DepositAddress)
