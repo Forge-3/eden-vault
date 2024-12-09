@@ -191,6 +191,13 @@ async fn withdraw_erc20(
         });
     }
 
+    mutate_state(|s| {
+        s.erc20_balances
+        .principal_erc20_sub(caller, withdraw_fee);
+        s.erc20_balances
+        .principal_erc20_add(s.admin.clone(), withdraw_fee);
+    });
+
     let ckerc20_tokens = read_state(|s| s.ckerc20_tokens.clone());
     log!(
         INFO,
