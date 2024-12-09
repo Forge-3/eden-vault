@@ -297,10 +297,10 @@ impl State {
             .eth_transactions
             .get_finalized_transaction(withdrawal_id)
             .expect("BUG: missing finalized transaction");
-        let withdrawal_request = self
-            .eth_transactions
-            .get_processed_withdrawal_request(withdrawal_id)
-            .expect("BUG: missing withdrawal request");
+        // let withdrawal_request = self
+        //     .eth_transactions
+        //     .get_processed_withdrawal_request(withdrawal_id)
+        //     .expect("BUG: missing withdrawal request");
         // let charged_tx_fee = match withdrawal_request {
         //     WithdrawalRequest::CkErc20(req) => req.max_transaction_fee,
         // };
@@ -326,16 +326,6 @@ impl State {
         //     .expect("BUG: failed to decode transaction data from transaction issued by minter");
         //     self.erc20_balances.erc20_sub(value);
         // }
-        
-        let caller_principal = match withdrawal_request {
-            WithdrawalRequest::CkErc20(ref request) => request.from,
-        };
-        let withdraw_fee = self.withdraw_fee_value.clone(); 
-
-        self.erc20_balances
-        .principal_erc20_sub(caller_principal, withdraw_fee);
-        self.erc20_balances
-        .principal_erc20_add(self.admin.clone(), withdraw_fee);
 
         if receipt.status == TransactionStatus::Success && !tx.transaction_data().is_empty() {
             let TransactionCallData::Erc20Transfer { to: _, value } = TransactionCallData::decode(
