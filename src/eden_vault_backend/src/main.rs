@@ -191,6 +191,10 @@ async fn withdraw_erc20(
         });
     }
 
+    let erc20_tx_fee = estimate_erc20_transaction_fee().await.ok_or_else(|| {
+        WithdrawErc20Error::TemporarilyUnavailable("Failed to retrieve current gas fee".to_string())
+    })?;
+
     mutate_state(|s| {
         s.erc20_balances
         .principal_erc20_sub(caller, withdraw_fee);
@@ -210,9 +214,6 @@ async fn withdraw_erc20(
             .principal_erc20_sub(caller.into(), ckerc20_withdrawal_amount);
     });
 
-    let erc20_tx_fee = estimate_erc20_transaction_fee().await.ok_or_else(|| {
-        WithdrawErc20Error::TemporarilyUnavailable("Failed to retrieve current gas fee".to_string())
-    })?;
     let withdrawal_request = Erc20WithdrawalRequest {
         max_transaction_fee: erc20_tx_fee,
         withdrawal_amount: ckerc20_withdrawal_amount,
