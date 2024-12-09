@@ -19,9 +19,21 @@ FORGE_TOKEN_DEPLOY_OUTPUT=$(forge create ./src/ForgeToken.sol:ForgeToken --rpc-u
 FORGE_TOKEN_ADDRESS=$(echo "$FORGE_TOKEN_DEPLOY_OUTPUT" | grep -oE "Deployed to: 0x[0-9a-fA-F]{40}" | sed 's/Deployed to: //')
 export FORGE_TOKEN_ADDRESS
 
-EDEN_TOKEN_DEPLOY_OUTPUT=$(forge create ./src/EdenTokenLL.sol:EdenTokenLL --rpc-url $EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY --constructor-args 10000000000000000000000000000 tEDEN tEDN $ALICE_PUB_KEY $ALICE_PUB_KEY 0 "0x0")
+EDEN_TOKEN_DEPLOY_OUTPUT=$(forge create ./src/EdenTokenLL.sol:EdenTokenLL --rpc-url $EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY --constructor-args 10000000000000000000000000000 "tEDEN" "tEDN" "$ALICE_PUB_KEY" "$ALICE_PUB_KEY" 0 "0x0000000000000000000000000000000000000000")
 EDEN_TOKEN_ADDRESS=$(echo "$EDEN_TOKEN_DEPLOY_OUTPUT" | grep -oE "Deployed to: 0x[0-9a-fA-F]{40}" | sed 's/Deployed to: //')
 export EDEN_TOKEN_ADDRESS
+
+cast send $EDEN_TOKEN_ADDRESS \
+    --rpc-url $EVM_RPC_URL \
+    --private-key $ALICE_PRIVATE_KEY \
+    --gas-limit 65000 \
+    "proposeLosslessTurnOff()"
+
+cast send $EDEN_TOKEN_ADDRESS \
+    --rpc-url $EVM_RPC_URL \
+    --private-key $ALICE_PRIVATE_KEY \
+    --gas-limit 65000 \
+    "executeLosslessTurnOff()"
 
 dfx deploy evm_rpc --argument '(record {})'
 set -o allexport; source .env; set +o allexport
@@ -67,8 +79,8 @@ npx typechain --target ethers-v6 --out-dir ./types './out/**/ForgeToken.json'
 npx typechain --target ethers-v6 --out-dir ./types './out/**/CkErc20Deposit.json'
 
 cast send $TEST_WALLET --value 100ether --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY
-cast send $FORGE_TOKEN_ADDRESS --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY --gas-limit 65000 "transfer(address,uint256)" "$TEST_WALLET" "1000000000000000000"
-cast send $EDEN_TOKEN_ADDRESS --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY --gas-limit 65000 "transfer(address,uint256)" "$TEST_WALLET" "1000000000000000000"
+cast send $FORGE_TOKEN_ADDRESS --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY --gas-limit 65000 "transfer(address,uint256)" "$TEST_WALLET" "10000000000000000"
+cast send $EDEN_TOKEN_ADDRESS --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY --gas-limit 65000 "transfer(address,uint256)" "$TEST_WALLET" "10000000000000000"
 
 echo "-------------------------------------------------------"
 echo "Environment variables:"
