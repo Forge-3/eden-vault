@@ -1,13 +1,11 @@
 #[cfg(test)]
 mod tests;
 
-use std::ops::Deref;
-
 pub use super::event::{Event, EventType};
 use super::State;
-use crate::state::transactions::{Reimbursed, ReimbursementIndex};
 use crate::storage::{record_event, with_event_iter};
-
+use ic_canister_log::log;
+use crate::logs::INFO;
 /// Updates the state to reflect the given state transition.
 // public because it's used in tests since process_event
 // requires canister infrastructure to retrieve time
@@ -33,13 +31,9 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         EventType::MintedCkErc20 {
             event_source,
             principal,
-            amount
+            amount,
         } => {
-            state.record_successful_mint(
-                *event_source,
-                *principal,
-                *amount,
-            );
+            state.record_successful_mint(*event_source, *principal, *amount);
         }
         EventType::SyncedToBlock { block_number } => {
             state.last_scraped_block_number = *block_number;
@@ -93,6 +87,13 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
             state
                 .eth_transactions
                 .record_quarantined_reimbursement(index.clone());
+        }
+        EventType::Erc20TransferCompleted { from, to, amount } => {
+            log!(
+                INFO,
+                "ERC-20 transfer completed: from {:?} to {:?}, amount {:?}",
+                from.to_text(), to.to_text(), amount
+            );
         }
     }
 }

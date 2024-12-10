@@ -1,5 +1,4 @@
 use crate::eth_rpc_client::responses::TransactionReceipt;
-use crate::numeric::LedgerBurnIndex;
 use crate::state::{transactions, transactions::EthWithdrawalRequest};
 use crate::tx::{SignedEip1559TransactionRequest, TransactionPrice};
 use candid::{CandidType, Deserialize, Nat, Principal};
@@ -228,7 +227,7 @@ impl TryFrom<WithdrawalSearchParameter> for transactions::WithdrawalSearchParame
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, CandidType, Deserialize)]
 pub struct WithdrawalDetail {
-    pub withdrawal_id: u64,
+    pub withdrawal_id: Nat,
     pub recipient_address: String,
     pub from: Principal,
     pub from_subaccount: Option<[u8; 32]>,
@@ -260,6 +259,8 @@ pub mod events {
     use candid::{CandidType, Deserialize, Nat, Principal};
     use serde_bytes::ByteBuf;
 
+    use super::WithdrawalDetail;
+
     #[derive(Clone, Debug, CandidType, Deserialize)]
     pub struct GetEventsArg {
         pub start: u64,
@@ -290,9 +291,7 @@ pub mod events {
             ledger_burn_index: Nat,
         },
         CkErc20 {
-            cketh_ledger_burn_index: Nat,
-            ledger_id: Principal,
-            ckerc20_ledger_burn_index: Nat,
+            withdrawal_id: Nat,
         },
     }
 
@@ -335,14 +334,6 @@ pub mod events {
     pub enum EventPayload {
         Init(InitArg),
         Upgrade(UpgradeArg),
-        AcceptedDeposit {
-            transaction_hash: String,
-            block_number: Nat,
-            log_index: Nat,
-            from_address: String,
-            value: Nat,
-            principal: Principal,
-        },
         AcceptedErc20Deposit {
             transaction_hash: String,
             block_number: Nat,
@@ -356,23 +347,11 @@ pub mod events {
             event_source: EventSource,
             reason: String,
         },
-        MintedCkEth {
-            event_source: EventSource,
-            mint_block_index: Nat,
-        },
         SyncedToBlock {
             block_number: Nat,
         },
         SyncedErc20ToBlock {
             block_number: Nat,
-        },
-        AcceptedEthWithdrawalRequest {
-            withdrawal_amount: Nat,
-            destination: String,
-            ledger_burn_index: Nat,
-            from: Principal,
-            from_subaccount: Option<[u8; 32]>,
-            created_at: Option<u64>,
         },
         CreatedTransaction {
             withdrawal_id: Nat,
@@ -389,40 +368,36 @@ pub mod events {
         FinalizedTransaction {
             withdrawal_id: Nat,
             transaction_receipt: TransactionReceipt,
+            details: Vec<WithdrawalDetail>
         },
         SkippedBlock {
             contract_address: Option<String>,
             block_number: Nat,
         },
-        AddedCkErc20Token {
-            chain_id: Nat,
-            address: String,
-            ckerc20_token_symbol: String,
-            ckerc20_ledger_id: Principal,
-        },
         AcceptedErc20WithdrawalRequest {
             max_transaction_fee: Nat,
             withdrawal_amount: Nat,
-            erc20_contract_address: String,
             destination: String,
-            cketh_ledger_burn_index: Nat,
-            ckerc20_ledger_id: Principal,
-            ckerc20_ledger_burn_index: Nat,
             from: Principal,
             from_subaccount: Option<[u8; 32]>,
             created_at: u64,
+            withdrawal_id: Nat
         },
         MintedCkErc20 {
             event_source: EventSource,
-            mint_block_index: Nat,
-            ckerc20_token_symbol: String,
-            erc20_contract_address: String,
+            principal: Principal,
+            amount: Nat,
         },
         QuarantinedDeposit {
             event_source: EventSource,
         },
         QuarantinedReimbursement {
             index: ReimbursementIndex,
+        },
+        Erc20TransferCompleted {
+            from: Principal,
+            to: Principal,
+            amount: Nat,
         },
     }
 }

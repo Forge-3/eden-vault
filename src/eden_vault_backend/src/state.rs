@@ -6,7 +6,7 @@ use crate::eth_rpc_client::responses::{TransactionReceipt, TransactionStatus};
 use crate::lifecycle::upgrade::UpgradeArg;
 use crate::lifecycle::EthereumNetwork;
 use crate::logs::DEBUG;
-use crate::numeric::{BlockNumber, Erc20Value, LedgerBurnIndex, TransactionNonce, Wei};
+use crate::numeric::{BlockNumber, Erc20Value, TransactionNonce, Wei};
 use crate::state::transactions::{Erc20WithdrawalRequest, TransactionCallData, WithdrawalRequest};
 use crate::tx::GasFeeEstimate;
 use candid::{Nat, Principal};
@@ -91,6 +91,8 @@ pub struct State {
     pub ckerc20_tokens: (Address, CkTokenSymbol),
 
     pub withdraw_count: Nat,
+
+    pub withdraw_fee_value: Erc20Value,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -105,6 +107,8 @@ pub enum InvalidStateError {
     InvalidLastErc20ScrapedBlockNumber(String),
     InvalidCkErc20Address(String),
     InvalidCkTokenSymbol(String),
+    InvalidWithdrawFeeValue(String),
+    InvalidWithdrawalFeeValue(String),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -135,10 +139,6 @@ impl Display for InvalidEventReason {
 }
 
 impl State {
-    pub fn set_admin(&mut self, new_admin: Principal) {
-        self.admin = new_admin;
-    }
-
     pub fn validate_config(&self) -> Result<(), InvalidStateError> {
         if self.ecdsa_key_name.trim().is_empty() {
             return Err(InvalidStateError::InvalidEcdsaKeyName(
@@ -154,6 +154,8 @@ impl State {
             EthereumNetwork::Mainnet => Wei::new(2_000_000_000_000),
             EthereumNetwork::Sepolia => Wei::new(10_000_000_000),
             EthereumNetwork::Local => Wei::new(1_000_000_000),
+            EthereumNetwork::BSC => Wei::new(2_000_000_000_000),
+            EthereumNetwork::BSCTestnet => Wei::new(2_000_000_000_000),
         };
         if self.cketh_minimum_withdrawal_amount < cketh_ledger_transfer_fee {
             return Err(InvalidStateError::InvalidMinimumWithdrawalAmount(
@@ -185,12 +187,12 @@ impl State {
         );
         assert!(!self.minted_events.contains_key(&event_source));
         assert!(!self.invalid_events.contains_key(&event_source));
-        if let ReceivedEvent::Erc20(event) = event {
-            assert!(
-                self.ckerc20_tokens.0 == event.erc20_contract_address,
-                "BUG: unsupported ERC-20 contract address in event {event:?}"
-            )
-        }
+
+        let ReceivedEvent::Erc20(event_content) = event;
+        assert!(
+            self.ckerc20_tokens.0 == event_content.erc20_contract_address,
+            "BUG: unsupported ERC-20 contract address in event {event_content:?}"
+        );
 
         self.events_to_mint.insert(event_source, event.clone());
 
@@ -281,9 +283,7 @@ impl State {
 
     fn update_balance_upon_deposit(&mut self, event: &ReceivedEvent) {
         match event {
-            ReceivedEvent::Erc20(event) => self
-                .erc20_balances
-                .erc20_add(event.value),
+            ReceivedEvent::Erc20(event) => self.erc20_balances.erc20_add(event.value),
         };
     }
 
@@ -292,40 +292,47 @@ impl State {
         withdrawal_id: &Nat,
         receipt: &TransactionReceipt,
     ) {
-        let tx_fee = receipt.effective_transaction_fee();
+        // let tx_fee = receipt.effective_transaction_fee();
         let tx = self
             .eth_transactions
             .get_finalized_transaction(withdrawal_id)
             .expect("BUG: missing finalized transaction");
-        let withdrawal_request = self
-            .eth_transactions
-            .get_processed_withdrawal_request(withdrawal_id)
-            .expect("BUG: missing withdrawal request");
-        let charged_tx_fee = match withdrawal_request {
-            WithdrawalRequest::CkErc20(req) => req.max_transaction_fee,
-        };
-        let unspent_tx_fee = charged_tx_fee.checked_sub(tx_fee).expect(
-            "BUG: charged transaction fee MUST always be at least the effective transaction fee",
-        );
-        let debited_amount = match receipt.status {
-            TransactionStatus::Success => tx
-                .transaction()
-                .amount
-                .checked_add(tx_fee)
-                .expect("BUG: debited amount always fits into U256"),
-            TransactionStatus::Failure => tx_fee,
-        };
-        self.eth_balance.eth_balance_sub(debited_amount);
-        self.eth_balance.total_effective_tx_fees_add(tx_fee);
-        self.eth_balance.total_unspent_tx_fees_add(unspent_tx_fee);
+        // let withdrawal_request = self
+        //     .eth_transactions
+        //     .get_processed_withdrawal_request(withdrawal_id)
+        //     .expect("BUG: missing withdrawal request");
+        // let charged_tx_fee = match withdrawal_request {
+        //     WithdrawalRequest::CkErc20(req) => req.max_transaction_fee,
+        // };
+        // let unspent_tx_fee = charged_tx_fee.checked_sub(tx_fee).expect(
+        //     "BUG: charged transaction fee MUST always be at least the effective transaction fee",
+        // );
+        // let debited_amount = match receipt.status {
+        //     TransactionStatus::Success => tx
+        //         .transaction()
+        //         .amount
+        //         .checked_add(tx_fee)
+        //         .expect("BUG: debited amount always fits into U256"),
+        //     TransactionStatus::Failure => tx_fee,
+        // };
+        // // self.eth_balance.eth_balance_sub(debited_amount);
+        // self.eth_balance.total_effective_tx_fees_add(tx_fee);
+        // self.eth_balance.total_unspent_tx_fees_add(unspent_tx_fee);
+
+        // if receipt.status == TransactionStatus::Success && !tx.transaction_data().is_empty() {
+        //     let TransactionCallData::Erc20Transfer { to: _, value } = TransactionCallData::decode(
+        //         tx.transaction_data(),
+        //     )
+        //     .expect("BUG: failed to decode transaction data from transaction issued by minter");
+        //     self.erc20_balances.erc20_sub(value);
+        // }
 
         if receipt.status == TransactionStatus::Success && !tx.transaction_data().is_empty() {
             let TransactionCallData::Erc20Transfer { to: _, value } = TransactionCallData::decode(
                 tx.transaction_data(),
             )
             .expect("BUG: failed to decode transaction data from transaction issued by minter");
-            self.erc20_balances
-                .erc20_sub(value);
+            self.erc20_balances.erc20_sub(value);
         }
     }
 
@@ -372,7 +379,11 @@ impl State {
             erc20_helper_contract_address,
             last_erc20_scraped_block_number,
             evm_rpc_id,
+            ckerc20_token_address,
+            ckerc20_token_symbol,
+            withdraw_fee_value,
         } = upgrade_args;
+
         if let Some(nonce) = next_transaction_nonce {
             let nonce = TransactionNonce::try_from(nonce)
                 .map_err(|e| InvalidStateError::InvalidTransactionNonce(format!("ERROR: {}", e)))?;
@@ -406,6 +417,19 @@ impl State {
                 self.evm_rpc_id = Some(evm_id);
             }
         }
+        if let (Some(address), Some(symbol)) = (ckerc20_token_address, ckerc20_token_symbol) {
+            let ckerc20_token_address = Address::from_str(&address)
+                .map_err(|e| InvalidStateError::InvalidCkErc20Address(format!("ERROR: {}", e)))?;
+            let ckerc20_token_symbol = CkTokenSymbol::from_str(&symbol)
+                .map_err(|e| InvalidStateError::InvalidCkTokenSymbol(format!("ERROR: {}", e)))?;
+
+            self.ckerc20_tokens = (ckerc20_token_address, ckerc20_token_symbol);
+        }
+        if let Some(fee_value) = withdraw_fee_value {
+            self.withdraw_fee_value = Erc20Value::try_from(fee_value)
+                .map_err(|e| InvalidStateError::InvalidWithdrawFeeValue(format!("ERROR: {}", e)))?;
+        }
+        
         self.validate_config()
     }
 
@@ -609,12 +633,18 @@ pub struct Erc20Balances {
     principal_balance_by_erc20: BTreeMap<Principal, Erc20Value>,
 }
 
-impl Erc20Balances {
-    pub fn default() -> Self {
+impl Default for Erc20Balances {
+    fn default() -> Self {
         Self {
             erc20_balance: 0u8.into(),
             principal_balance_by_erc20: BTreeMap::default(),
         }
+    }
+}
+
+impl Erc20Balances {
+    pub fn get_erc20_balance(&self) -> Erc20Value {
+        self.erc20_balance
     }
 
     pub fn balance_of(&self, principal: &Principal) -> Erc20Value {
@@ -665,15 +695,12 @@ impl Erc20Balances {
     }
 
     pub fn erc20_add(&mut self, deposit: Erc20Value) {
-        self.erc20_balance = self
-            .erc20_balance
-            .checked_add(deposit)
-            .unwrap_or_else(|| {
-                panic!(
-                    "BUG: overflow when adding {} to {}",
-                    deposit, self.erc20_balance
-                )
-            });
+        self.erc20_balance = self.erc20_balance.checked_add(deposit).unwrap_or_else(|| {
+            panic!(
+                "BUG: overflow when adding {} to {}",
+                deposit, self.erc20_balance
+            )
+        });
     }
 
     pub fn erc20_sub(&mut self, withdrawal_amount: Erc20Value) {
@@ -687,7 +714,6 @@ impl Erc20Balances {
                 )
             });
     }
-
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, EnumIter)]

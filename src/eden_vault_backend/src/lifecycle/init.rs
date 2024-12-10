@@ -10,7 +10,8 @@ use candid::types::principal::Principal;
 use candid::{CandidType, Deserialize};
 use ic_ethereum_types::Address;
 use minicbor::{Decode, Encode};
-use std::collections::BTreeMap;
+use crate::numeric::Erc20Value;
+
 
 #[derive(Clone, Eq, PartialEq, Debug, CandidType, Decode, Deserialize, Encode)]
 pub struct InitArg {
@@ -20,8 +21,6 @@ pub struct InitArg {
     pub ecdsa_key_name: String,
     #[n(2)]
     pub ethereum_contract_address: Option<String>,
-    #[cbor(n(3), with = "crate::cbor::principal")]
-    pub ledger_id: Principal,
     #[n(4)]
     pub ethereum_block_height: CandidBlockTag,
     #[cbor(n(5), with = "crate::cbor::nat")]
@@ -36,6 +35,8 @@ pub struct InitArg {
     pub ckerc20_token_address: String,
     #[n(10)]
     pub ckerc20_token_symbol: String,
+    #[cbor(n(11), with = "crate::cbor::nat::option")]
+    pub withdraw_fee_value: Option<Nat>,
 }
 
 impl TryFrom<InitArg> for State {
@@ -45,7 +46,6 @@ impl TryFrom<InitArg> for State {
             ethereum_network,
             ecdsa_key_name,
             ethereum_contract_address,
-            ledger_id: _,
             ethereum_block_height,
             minimum_withdrawal_amount,
             next_transaction_nonce,
@@ -53,6 +53,7 @@ impl TryFrom<InitArg> for State {
             admin,
             ckerc20_token_address,
             ckerc20_token_symbol,
+            withdraw_fee_value,
         }: InitArg,
     ) -> Result<Self, Self::Error> {
         use std::str::FromStr;
@@ -83,9 +84,17 @@ impl TryFrom<InitArg> for State {
 
         let ckerc20_token_address = Address::from_str(&ckerc20_token_address)
             .map_err(|e| InvalidStateError::InvalidCkErc20Address(format!("ERROR: {}", e)))?;
-    
+
         let ckerc20_token_symbol = CkTokenSymbol::from_str(&ckerc20_token_symbol)
             .map_err(|e| InvalidStateError::InvalidCkTokenSymbol(format!("ERROR: {}", e)))?;
+
+        let withdraw_fee_value = if let Some(nat_value) = withdraw_fee_value {
+            Erc20Value::try_from(nat_value).map_err(|_| {
+                InvalidStateError::InvalidWithdrawalFeeValue("ERROR: Invalid withdrawal fee value".to_string())
+            })?
+        } else {
+            Erc20Value::ZERO
+        };
 
         let state = Self {
             admin,
@@ -112,6 +121,8 @@ impl TryFrom<InitArg> for State {
             evm_rpc_id: None,
             ckerc20_tokens: (ckerc20_token_address, ckerc20_token_symbol),
             erc20_balances: Default::default(),
+            withdraw_count: Nat::from(0u128),
+            withdraw_fee_value,
         };
         state.validate_config()?;
         Ok(state)

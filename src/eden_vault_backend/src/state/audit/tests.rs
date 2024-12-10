@@ -281,13 +281,6 @@ impl GetEventsFile {
                     event_source: map_event_source(event_source),
                     reason,
                 },
-                EventPayload::MintedCkEth {
-                    event_source,
-                    mint_block_index,
-                } => ET::MintedCkEth {
-                    event_source: map_event_source(event_source),
-                    mint_block_index: map_nat(mint_block_index),
-                },
                 EventPayload::SyncedToBlock { block_number } => ET::SyncedToBlock {
                     block_number: block_number.try_into().unwrap(),
                 },

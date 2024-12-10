@@ -181,7 +181,10 @@ pub async fn last_received_events(
             from, to
         ));
     }
-    let topics: Vec<_> = vec![FixedSizeData(*topic).into(), FixedSizeData((&token_contract_address).into()).into()];
+    let topics: Vec<_> = vec![
+        FixedSizeData(*topic).into(),
+        FixedSizeData((&token_contract_address).into()).into(),
+    ];
     // We add token contract addresses as additional topics to match.
     // It has a disjunction semantics, so it will match if event matches any one of these addresses.
 

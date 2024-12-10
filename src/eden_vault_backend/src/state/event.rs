@@ -1,13 +1,8 @@
-use crate::checked_amount::CheckedAmountOf;
-use crate::erc20::CkErc20Token;
-use crate::eth_logs::{EventSource, ReceivedErc20Event, ReceivedEthEvent, ReceivedEvent};
+use crate::eth_logs::{EventSource, ReceivedErc20Event, ReceivedEvent};
 use crate::eth_rpc_client::responses::TransactionReceipt;
 use crate::lifecycle::{init::InitArg, upgrade::UpgradeArg};
-use crate::numeric::{BlockNumber, Erc20Tag, Erc20Value, LedgerBurnIndex, LedgerMintIndex};
-use crate::state::transactions::{
-    Erc20WithdrawalRequest, EthWithdrawalRequest, Reimbursed, ReimbursementIndex,
-    ReimbursementRequest,
-};
+use crate::numeric::{BlockNumber, Erc20Value};
+use crate::state::transactions::{Erc20WithdrawalRequest, ReimbursementIndex};
 use crate::tx::{Eip1559TransactionRequest, SignedEip1559TransactionRequest};
 use candid::{Nat, Principal};
 use ic_ethereum_types::Address;
@@ -126,6 +121,16 @@ pub enum EventType {
         contract_address: Address,
         #[n(1)]
         block_number: BlockNumber,
+    },
+    ///The transfer completed successfully.
+    #[n(25)]
+    Erc20TransferCompleted {
+        #[cbor(n(0), with = "crate::cbor::principal")]
+        from: Principal,
+        #[cbor(n(1), with = "crate::cbor::principal")]
+        to: Principal,
+        #[n(2)]
+        amount: Erc20Value,
     },
 }
 

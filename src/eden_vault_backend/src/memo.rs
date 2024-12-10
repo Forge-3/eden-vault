@@ -9,6 +9,7 @@ use crate::state::transactions::ReimbursementRequest;
 use ic_ethereum_types::Address;
 use icrc_ledger_types::icrc1::transfer::Memo;
 use minicbor::{Decode, Encode, Encoder};
+use num_traits::ToPrimitive;
 
 /// Encodes minter memo as a binary blob.
 fn encode<T: minicbor::Encode<()>>(t: &T) -> Vec<u8> {
@@ -112,13 +113,18 @@ impl From<&ReceivedEvent> for Memo {
 
 impl From<ReimbursementRequest> for MintMemo {
     fn from(reimbursement_request: ReimbursementRequest) -> Self {
+        let helper: u128 = reimbursement_request
+            .ledger_burn_index
+            .0
+            .to_u128()
+            .expect("Conversion from Nat to u128 failed");
         match reimbursement_request.transaction_hash {
             Some(tx_hash) => MintMemo::ReimburseTransaction {
-                withdrawal_id: reimbursement_request.ledger_burn_index.get(),
+                withdrawal_id: helper as u64,
                 tx_hash,
             },
             None => MintMemo::ReimburseWithdrawal {
-                withdrawal_id: reimbursement_request.ledger_burn_index.get(),
+                withdrawal_id: helper as u64,
             },
         }
     }

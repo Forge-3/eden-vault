@@ -1,17 +1,81 @@
 # `eden_vault`
 
-Welcome to your new `eden_vault` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
+This repository contains a treasury developed based on the functionality of ckERC20 within the ICP blockchain ecosystem. This technology utilizes HTTP outcalls to query multiple JSON-RPC providers to interact with the BSC Testnet blockchain.
 
-To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
 
-To learn more before you start working with `eden_vault`, see the following documentation available online:
+<b>BSC Testnet addresses:</b>
 
-- [Quick Start](https://internetcomputer.org/docs/current/developer-docs/setup/deploy-locally)
-- [SDK Developer Tools](https://internetcomputer.org/docs/current/developer-docs/setup/install)
-- [Rust Canister Development Guide](https://internetcomputer.org/docs/current/developer-docs/backend/rust/)
-- [ic-cdk](https://docs.rs/ic-cdk)
-- [ic-cdk-macros](https://docs.rs/ic-cdk-macros)
-- [Candid Introduction](https://internetcomputer.org/docs/current/developer-docs/backend/candid/)
+|  Name     |  Address                                    |
+| --------  | ------------------------------------------  |
+| Minter    | 0x7187CC02Be5f744eE15653A4ea3F13FeC23E1a7B  |
+| Token     | 0x890e77bA80f1D3f62Fe5d9259750f0C52F198b0f  |
+| Deposit   | 0xaDc4434fD98D5dA23Bc0DCd6C281BBE2E021D7c1  |
+
+<b>ICP addresses:</b>
+
+|  Name     |  Principal                                  |
+| --------  | ------------------------------------------  |
+| Minter    | be2us-64aaa-aaaaa-qaabq-cai                 |
+
+## Architecture
+
+The Eden Treasury is responsible for depositing and withdrawing the ERC-20 token. Each deposit involves invoking the `deposit` method on the smart contract (CkErc20Deposit) on the BSC Testnet network.
+
+## Description of deposit
+
+1. Depositing tokens into the smart contract triggers the emission of the "ReceivedErc20" event, which contains all the information related to the deposit.  
+2. The Eden Treasury periodically reads the latest events from the CkErc20Deposit contract and subsequently credits the transferred tokens to the recipient's account.
+
+Flow:
+
+----
+<pre>
+ ┌────┐                      ┌───────────────┐                     ┌───────────────┐                        ┌──────┐
+ │User│                      │ERC-20 Contract│                     │Helper Contract│                        │Vault │
+ └─┬──┘                      └───────┬───────┘                     └───────┬───────┘                        └──┬───┘
+   │                                 │                                     │                                   │
+   │approve(helper_contract, amount) │                                     │                                   │
+   │────────────────────────────────>│                                     │                                   │
+   │                                 │                                     │                                   │
+   │                deposit(amount, principal)                             │                                   │
+   │──────────────────────────────────────────────────────────────────────>│                                   │
+   │                                 │ transferFrom(user, minter, amount)  │                                   │
+   │                                 │<────────────────────────────────────│                                   │
+   │                                 │                                     │                                   │
+   │                                 │                                     │       get_events                  │
+   │                                 │                                     │<──────────────────────────────────│
+   │                                 │                                     │Events(token_id, amount, principal)│
+   │                                 │                                     │──────────────────────────────────>│
+   │                                 │  asign_tokens(amount, principal)    │                                   │
+   │<──────────────────────────────────────────────────────────────────────────────────────────────────────────│
+ ┌─┴──┐                      ┌───────┴───────┐                     ┌───────┴───────┐                        ┌──┴───┐
+ │User│                      │ERC-20 Contract│                     │Helper Contract│                        │Vault |
+ └────┘                      └───────────────┘                     └───────────────┘                        └──────┘
+ </pre>
+----
+
+## Description of withdraw
+
+1. Calling the "withdraw_erc20" method results in the tokens being deducted from the treasury and a transaction being created and sent. If the transaction fails, it is resent.
+
+----
+<pre>
+ ┌────┐                                                 ┌──────┐                              ┌───────────────────┐
+ │User│                                                 │Vault │                              │BSC Testnet Network│
+ └─┬──┘                                                 └──┬───┘                              └─────┬─────────────┘
+   │                                                       │                                        │
+   │    withdraw_erc20(amount, destination_eth_address)    │                                        │
+   │──────────────────────────────────────────────────────>│                                        │
+   │                                                       │ eth_sendRawTransaction                 │
+   │                                                       │ (destination_eth_address, amount)      │
+   │                                                       │───────────────────────────────────────>│
+ ┌─┴──┐                                                 ┌──┴───┐                              ┌─────┴─────────────┐
+ │User│                                                 │Vault │                              │BSC Testnet Network│
+ └────┘                                                 └──────┘                              └───────────────────┘
+ </pre>
+----
+
+## How to start
 
 If you want to start working on your project right away, you might want to try the following commands:
 
@@ -51,11 +115,3 @@ npm start
 
 Which will start a server at `http://localhost:8080`, proxying API requests to the replica at port 4943.
 
-### Note on frontend environment variables
-
-If you are hosting frontend code somewhere without using DFX, you may need to make one of the following adjustments to ensure your project does not fetch the root key in production:
-
-- set`DFX_NETWORK` to `ic` if you are using Webpack
-- use your own preferred method to replace `process.env.DFX_NETWORK` in the autogenerated declarations
-  - Setting `canisters -> {asset_canister_id} -> declarations -> env_override to a string` in `dfx.json` will replace `process.env.DFX_NETWORK` with the string in the autogenerated declarations
-- Write your own `createActor` constructor

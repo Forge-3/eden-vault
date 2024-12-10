@@ -8,8 +8,7 @@ use crate::eth_rpc_client::responses::TransactionStatus;
 use crate::lifecycle::EthereumNetwork;
 use crate::map::MultiKeyMap;
 use crate::numeric::{
-    CkTokenAmount, Erc20Value, GasAmount, LedgerMintIndex, TransactionCount,
-    TransactionNonce, Wei,
+    CkTokenAmount, Erc20Value, GasAmount, LedgerMintIndex, TransactionCount, TransactionNonce, Wei,
 };
 use crate::state::event::EventType;
 use crate::state::read_state;
@@ -40,7 +39,7 @@ pub enum WithdrawalRequest {
 impl WithdrawalRequest {
     pub fn get_withdrawal_id(&self) -> Nat {
         match self {
-            WithdrawalRequest::CkErc20(request) => request.id.clone()
+            WithdrawalRequest::CkErc20(request) => request.id.clone(),
         }
     }
     pub fn created_at(&self) -> Option<u64> {
@@ -84,7 +83,6 @@ impl WithdrawalRequest {
             BySenderAccount(Account { owner, subaccount }) => {
                 &self.from() == owner && self.from_subaccount() == &subaccount.map(Subaccount)
             }
-            
         }
     }
 }
@@ -167,11 +165,10 @@ pub enum ReimbursementIndex {
 impl ReimbursementIndex {
     pub fn id(&self) -> Nat {
         match self {
-            Self::CkErc20 { withdrawal_id } => withdrawal_id.clone()
+            Self::CkErc20 { withdrawal_id } => withdrawal_id.clone(),
         }
     }
 }
-
 
 #[derive(Clone, Eq, PartialEq, Debug, Decode, Encode)]
 pub struct ReimbursementRequest {
@@ -191,8 +188,6 @@ pub struct ReimbursementRequest {
     #[n(4)]
     pub transaction_hash: Option<Hash>,
 }
-
-
 
 #[derive(Clone, Eq, PartialEq, Debug, Decode, Encode)]
 pub struct Reimbursed {
@@ -221,6 +216,12 @@ pub enum ReimbursedError {
 #[derive(Clone, Eq, PartialEq, Decode, Encode)]
 #[cbor(transparent)]
 pub struct Subaccount(#[cbor(n(0), with = "minicbor::bytes")] pub [u8; 32]);
+
+impl Subaccount {
+    pub fn to_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
 
 impl fmt::Debug for Subaccount {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
@@ -298,12 +299,9 @@ impl fmt::Debug for Erc20WithdrawalRequest {
 pub struct EthTransactions {
     pub(in crate::state) pending_withdrawal_requests: VecDeque<WithdrawalRequest>,
     // Processed withdrawal requests (transaction created, sent, or finalized).
-    pub(in crate::state) processed_withdrawal_requests:
-        BTreeMap<Nat, WithdrawalRequest>,
-    pub(in crate::state) created_tx:
-        MultiKeyMap<TransactionNonce, Nat, TransactionRequest>,
-    pub(in crate::state) sent_tx:
-        MultiKeyMap<TransactionNonce, Nat, Vec<SignedTransactionRequest>>,
+    pub(in crate::state) processed_withdrawal_requests: BTreeMap<Nat, WithdrawalRequest>,
+    pub(in crate::state) created_tx: MultiKeyMap<TransactionNonce, Nat, TransactionRequest>,
+    pub(in crate::state) sent_tx: MultiKeyMap<TransactionNonce, Nat, Vec<SignedTransactionRequest>>,
     pub(in crate::state) finalized_tx:
         MultiKeyMap<TransactionNonce, Nat, FinalizedEip1559Transaction>,
     pub(in crate::state) next_nonce: TransactionNonce,
@@ -374,10 +372,11 @@ impl EthTransactions {
         self.reimbursed
             .iter()
             .find_map(|(index, value)| match index {
-                ReimbursementIndex::CkErc20 {
-                    withdrawal_id,
-                    ..
-                } if withdrawal_id == searched_burn_index => Some(value),
+                ReimbursementIndex::CkErc20 { withdrawal_id, .. }
+                    if withdrawal_id == searched_burn_index =>
+                {
+                    Some(value)
+                }
                 _ => None,
             })
     }
@@ -580,7 +579,9 @@ impl EthTransactions {
             .filter(|(nonce, _burn_index, _signed_txs)| *nonce < &first_non_finalized_tx_nonce)
         {
             for sent_tx in sent_txs {
-                if let Some(prev_index) = transactions.insert(sent_tx.as_ref().hash(), index.clone()) {
+                if let Some(prev_index) =
+                    transactions.insert(sent_tx.as_ref().hash(), index.clone())
+                {
                     assert_eq!(prev_index, *index,
                                "BUG: duplicate transaction hash {} for burn indices {prev_index} and {index}", sent_tx.as_ref().hash());
                 }
@@ -695,8 +696,8 @@ impl EthTransactions {
             .processed_withdrawal_requests
             .values()
             .filter(|r| r.match_parameter(parameter))
-            .map(|request| {
-                match self.processed_transaction_status(&request.get_withdrawal_id()) {
+            .map(
+                |request| match self.processed_transaction_status(&request.get_withdrawal_id()) {
                     (RetrieveEthStatus::TxCreated, Some(tx)) => {
                         (request, WithdrawalStatus::TxCreated, Some(tx))
                     }
@@ -709,8 +710,8 @@ impl EthTransactions {
                     _ => {
                         panic!("Status of processed request is not found {:?}", request)
                     }
-                }
-            });
+                },
+            );
 
         pending.chain(processed).collect()
     }
@@ -818,13 +819,7 @@ impl EthTransactions {
 
     pub fn transactions_to_sign_iter(
         &self,
-    ) -> impl Iterator<
-        Item = (
-            &TransactionNonce,
-            &Nat,
-            &Eip1559TransactionRequest,
-        ),
-    > {
+    ) -> impl Iterator<Item = (&TransactionNonce, &Nat, &Eip1559TransactionRequest)> {
         self.created_tx
             .iter()
             .map(|(nonce, ledger_burn_index, tx)| (nonce, ledger_burn_index, tx.as_ref()))
@@ -880,22 +875,13 @@ impl EthTransactions {
         self.finalized_tx.get_alt(burn_index)
     }
 
-    pub fn get_processed_withdrawal_request(
-        &self,
-        burn_index: &Nat,
-    ) -> Option<&WithdrawalRequest> {
+    pub fn get_processed_withdrawal_request(&self, burn_index: &Nat) -> Option<&WithdrawalRequest> {
         self.processed_withdrawal_requests.get(burn_index)
     }
 
     pub fn finalized_transactions_iter(
         &self,
-    ) -> impl Iterator<
-        Item = (
-            &TransactionNonce,
-            &Nat,
-            &FinalizedEip1559Transaction,
-        ),
-    > {
+    ) -> impl Iterator<Item = (&TransactionNonce, &Nat, &FinalizedEip1559Transaction)> {
         self.finalized_tx.iter()
     }
 
@@ -1013,7 +999,7 @@ pub fn create_transaction(
                 });
             }
 
-            let erc20_contract_address = read_state(|s| s.erc20_helper_contract_address);
+            let erc20_contract_address = read_state(|s| s.ckerc20_tokens.0);
 
             Ok(Eip1559TransactionRequest {
                 chain_id: ethereum_network.chain_id(),
@@ -1021,7 +1007,7 @@ pub fn create_transaction(
                 max_priority_fee_per_gas: gas_fee_estimate.max_priority_fee_per_gas,
                 max_fee_per_gas: request_max_fee_per_gas,
                 gas_limit,
-                destination: erc20_contract_address.unwrap(),
+                destination: erc20_contract_address,
                 amount: Wei::ZERO,
                 data: TransactionCallData::Erc20Transfer {
                     to: request.destination,
