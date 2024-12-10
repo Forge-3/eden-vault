@@ -148,6 +148,7 @@ fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<WithdrawalDeta
                     .clone()
                     .map(|subaccount| subaccount.0),
                 status,
+                withdraw_vault_fee_value: request.get_withdraw_vault_fee(),
             })
             .collect()
     })
@@ -176,11 +177,11 @@ async fn withdraw_erc20(
     let ckerc20_withdrawal_amount =
         Erc20Value::try_from(amount).expect("ERROR: failed to convert Nat to u256");
 
-    let withdraw_fee = read_state(|s| s.withdraw_fee_value.clone());
-    let withdraw_fee = Erc20Value::try_from(withdraw_fee).expect("ERROR: failed to convert Nat to u256");
+    let withdraw_vault_fee_value = read_state(|s| s.withdraw_fee_value.clone());
+    let withdraw_vault_fee_value = Erc20Value::try_from(withdraw_vault_fee_value).expect("ERROR: failed to convert Nat to u256");
 
     let total_amount_needed = ckerc20_withdrawal_amount
-    .checked_add(withdraw_fee)
+    .checked_add(withdraw_vault_fee_value)
     .expect("BUG: Overflow when calculating total amount needed");
 
     let caller_balance = read_state(|s| s.erc20_balances.balance_of(&caller));
@@ -197,9 +198,9 @@ async fn withdraw_erc20(
 
     mutate_state(|s| {
         s.erc20_balances
-        .principal_erc20_sub(caller, withdraw_fee);
+        .principal_erc20_sub(caller, withdraw_vault_fee_value);
         s.erc20_balances
-        .principal_erc20_add(s.admin.clone(), withdraw_fee);
+        .principal_erc20_add(s.admin.clone(), withdraw_vault_fee_value);
     });
 
     let ckerc20_tokens = read_state(|s| s.ckerc20_tokens.clone());
@@ -221,6 +222,7 @@ async fn withdraw_erc20(
         from: caller,
         from_subaccount: None,
         created_at: ic_cdk::api::time(),
+        withdraw_vault_fee_value: withdraw_vault_fee_value.into(),
         // TODO
         id: mutate_state(|s| {
             s.withdraw_count += 1_u128;
@@ -429,7 +431,8 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     from,
                     from_subaccount,
                     created_at,
-                    id
+                    id,
+                    withdraw_vault_fee_value
                 }) => EP::AcceptedErc20WithdrawalRequest {
                     max_transaction_fee: max_transaction_fee.into(),
                     withdrawal_amount: withdrawal_amount.into(),
@@ -437,7 +440,8 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     from,
                     from_subaccount: from_subaccount.map(Subaccount::to_bytes),
                     created_at,
-                    withdrawal_id: id
+                    withdrawal_id: id,
+                    withdraw_vault_fee_value
                 },
                 EventType::MintedCkErc20 {
                     event_source,

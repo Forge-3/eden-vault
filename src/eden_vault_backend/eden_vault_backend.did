@@ -74,6 +74,7 @@ type EventPayload = variant {
     created_at : nat64;
     from_subaccount : opt blob;
     max_transaction_fee : nat;
+    withdraw_vault_fee_value : nat;
   };
   FinalizedTransaction : record {
     withdrawal_id : nat;
@@ -208,6 +209,7 @@ type WithdrawalDetail = record {
   from_subaccount : opt blob;
   max_transaction_fee : opt nat;
   recipient_address : text;
+  withdraw_vault_fee_value : nat;
 };
 type WithdrawalSearchParameter = variant {
   ByRecipient : text;

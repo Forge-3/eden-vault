@@ -11,13 +11,17 @@ dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     admin = principal "42z5y-skeh6-5yq5k-37ixk-slrvz-e3jvs-3ftl7-7flrr-4swh6-wu5ea-kqe";
     ckerc20_token_address = "0x890e77bA80f1D3f62Fe5d9259750f0C52F198b0f";
     ckerc20_token_symbol = "ckFT";
-} })' --ic
+} })' --ic --upgrade-unchanged
 
 dfx deploy --argument='(variant { UpgradeArg = record {
     next_transaction_nonce = opt 0;
     minimum_withdrawal_amount = opt 5_000_000_000_000;
     ethereum_block_height = opt variant { Latest };
     erc20_helper_contract_address = opt "0xaDc4434fD98D5dA23Bc0DCd6C281BBE2E021D7c1";
-    last_erc20_scraped_block_number = opt 46211711;
+    last_erc20_scraped_block_number = opt 46359173;
     evm_rpc_id = opt principal "7hfb6-caaaa-aaaar-qadga-cai";
-} })' --network ic eden_vault_backend
+} })' --network ic eden_vault_backend --upgrade-unchanged
+
+dfx deploy --argument='(variant { UpgradeArg = record {
+    withdraw_fee_value = opt 0
+ } })' --network ic eden_vault_backend --upgrade-unchanged

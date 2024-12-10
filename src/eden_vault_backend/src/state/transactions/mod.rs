@@ -42,6 +42,11 @@ impl WithdrawalRequest {
             WithdrawalRequest::CkErc20(request) => request.id.clone(),
         }
     }
+    pub fn get_withdraw_vault_fee(&self) -> Nat {
+        match self {
+            WithdrawalRequest::CkErc20(request) => request.withdraw_vault_fee_value.clone(),
+        }
+    }
     pub fn created_at(&self) -> Option<u64> {
         match self {
             WithdrawalRequest::CkErc20(request) => Some(request.created_at),
@@ -141,6 +146,9 @@ pub struct Erc20WithdrawalRequest {
     /// The transaction ID.
     #[cbor(n(6), with = "crate::cbor::nat")]
     pub id: Nat,
+    /// Withdraw vault fee value
+    #[cbor(n(7), with = "crate::cbor::nat")]
+    pub withdraw_vault_fee_value: Nat,
 }
 
 impl From<&WithdrawalRequest> for ReimbursementIndex {
@@ -268,6 +276,7 @@ impl fmt::Debug for Erc20WithdrawalRequest {
             from_subaccount,
             created_at,
             id,
+            withdraw_vault_fee_value
         } = self;
         f.debug_struct("Erc20WithdrawalRequest")
             .field("max_transaction_fee", max_transaction_fee)
@@ -277,6 +286,7 @@ impl fmt::Debug for Erc20WithdrawalRequest {
             .field("from_subaccount", from_subaccount)
             .field("created_at", created_at)
             .field("id", id)
+            .field("withdraw_vault_fee_value", withdraw_vault_fee_value)
             .finish()
     }
 }

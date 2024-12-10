@@ -235,6 +235,7 @@ pub struct WithdrawalDetail {
     pub withdrawal_amount: Nat,
     pub max_transaction_fee: Option<Nat>,
     pub status: WithdrawalStatus,
+    pub withdraw_vault_fee_value: Nat,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, CandidType, Deserialize)]
@@ -381,7 +382,8 @@ pub mod events {
             from: Principal,
             from_subaccount: Option<[u8; 32]>,
             created_at: u64,
-            withdrawal_id: Nat
+            withdrawal_id: Nat,
+            withdraw_vault_fee_value: Nat, 
         },
         MintedCkErc20 {
             event_source: EventSource,
