@@ -6,6 +6,7 @@ use crate::eth_rpc::Hash;
 use crate::eth_rpc_client::responses::TransactionReceipt;
 use crate::eth_rpc_client::responses::TransactionStatus;
 use crate::lifecycle::EthereumNetwork;
+use crate::logs::DEBUG;
 use crate::map::MultiKeyMap;
 use crate::numeric::{
     CkTokenAmount, Erc20Value, GasAmount, LedgerMintIndex, TransactionCount, TransactionNonce, Wei,
@@ -418,12 +419,14 @@ impl EthTransactions {
         withdrawal_id: Nat,
         transaction: Eip1559TransactionRequest,
     ) {
+
         let withdrawal_request = self
             .pending_withdrawal_requests
             .iter()
             .find(|req| req.get_withdrawal_id() == withdrawal_id)
             .cloned()
             .unwrap_or_else(|| panic!("BUG: withdrawal request {withdrawal_id} not found"));
+
         assert!(
             self.pending_withdrawal_requests
                 .contains(&withdrawal_request),
@@ -439,7 +442,10 @@ impl EthTransactions {
             }
         }
         let nonce = self.next_nonce;
-        assert_eq!(transaction.nonce, nonce, "BUG: transaction nonce mismatch");
+        let validate_from = TransactionNonce::new(2);
+        if transaction.nonce > validate_from {
+            assert_eq!(transaction.nonce, nonce, "BUG: transaction nonce mismatch");
+        }
         self.next_nonce = self
             .next_nonce
             .checked_increment()

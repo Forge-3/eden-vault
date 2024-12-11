@@ -35,7 +35,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 pub const SEPOLIA_TEST_CHAIN_ID: u64 = 11155111;
-pub const CKETH_LEDGER_TRANSACTION_FEE: Wei = Wei::new(2_000_000_000_000_u128);
 
 fn validate_caller_not_anonymous() -> candid::Principal {
     let principal = ic_cdk::caller();
@@ -596,22 +595,22 @@ async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<String, Stri
         )
     })?;
 
-    mutate_state(|s| {
+    read_state(|s| {
         let caller_balance = s.erc20_balances.balance_of(&caller);
         if caller_balance < checked_amount {
             return Err("ERROR: Insufficient balance".to_string());
         }
+        Ok(())
+    })?;
+    
 
-        s.erc20_balances.principal_erc20_sub(caller, checked_amount);
-        s.erc20_balances
-            .principal_erc20_add(receiver, checked_amount);
-
+    mutate_state(|s| {
         process_event(
             s,
             EventType::Erc20TransferCompleted {
                 from: caller,
                 to: receiver,
-                amount: checked_amount.into(),
+                amount: checked_amount,
             },
         );
 

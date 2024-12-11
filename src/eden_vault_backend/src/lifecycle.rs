@@ -42,8 +42,8 @@ impl EthereumNetwork {
         match self {
             EthereumNetwork::Mainnet => 1,
             EthereumNetwork::Sepolia => 11155111,
-            EthereumNetwork::BSC => 97,
-            EthereumNetwork::BSCTestnet => 56,
+            EthereumNetwork::BSC => 56,
+            EthereumNetwork::BSCTestnet => 97,
             EthereumNetwork::Local => 31337,
         }
     }

@@ -5,7 +5,7 @@ use crate::eth_rpc::BlockTag;
 use crate::eth_rpc_client::responses::{TransactionReceipt, TransactionStatus};
 use crate::lifecycle::upgrade::UpgradeArg;
 use crate::lifecycle::EthereumNetwork;
-use crate::logs::DEBUG;
+use crate::logs::{DEBUG, INFO};
 use crate::numeric::{BlockNumber, Erc20Value, TransactionNonce, Wei};
 use crate::state::transactions::{Erc20WithdrawalRequest, TransactionCallData, WithdrawalRequest};
 use crate::tx::GasFeeEstimate;
@@ -217,6 +217,18 @@ impl State {
         }
     }
 
+    fn record_transfer(&mut self, from: Principal, to: Principal, amount: Erc20Value) {
+        self.erc20_balances.principal_erc20_sub(from, amount);
+        self.erc20_balances
+            .principal_erc20_add(to, amount);
+
+        log!(
+            INFO,
+            "ERC-20 transfer completed: from {:?} to {:?}, amount {:?}",
+            from.to_text(), to.to_text(), amount
+        );
+    }
+
     fn record_invalid_deposit(&mut self, source: EventSource, error: String) -> bool {
         assert!(
             !self.events_to_mint.contains_key(&source),
@@ -260,6 +272,9 @@ impl State {
     }
 
     pub fn record_erc20_withdrawal_request(&mut self, request: Erc20WithdrawalRequest) {
+        if self.withdraw_count < request.id {
+            self.withdraw_count = request.id.clone();
+        }
         self.eth_transactions.record_withdrawal_request(request);
     }
 

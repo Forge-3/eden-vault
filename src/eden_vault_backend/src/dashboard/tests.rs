@@ -1136,8 +1136,8 @@ fn ckerc20_withdrawal_flow(
     let withdrawal_request =
         ckerc20_withdrawal_request_with_index(cketh_ledger_burn_index, ckerc20_token);
     let gas_fee = GasFeeEstimate {
-        base_fee_per_gas: WeiPerGas::from(250_000_000_u64),
-        max_priority_fee_per_gas: WeiPerGas::from(1_500_000_000_u64),
+        base_fee_per_gas: WeiPerGas::from(3_000_000_000_u64),
+        max_priority_fee_per_gas: WeiPerGas::from(3_000_000_000_u64),
     };
     let transaction = create_transaction(
         &withdrawal_request.clone().into(),

@@ -256,6 +256,10 @@ impl InnerSignedTransactionRequest {
         rlp.insert(0, self.transaction.transaction_type());
         rlp
     }
+
+    pub fn chain_id(&self) -> u64 {
+        return self.transaction.chain_id;
+    }
 }
 
 impl<C> minicbor::Encode<C> for SignedEip1559TransactionRequest {
@@ -403,6 +407,10 @@ impl SignedEip1559TransactionRequest {
             transaction: self,
             receipt,
         })
+    }
+
+    pub fn chain_id(&self) -> u64 {
+        self.inner.chain_id()
     }
 }
 
@@ -683,7 +691,7 @@ pub fn estimate_transaction_fee(
     // average value between the `minSuggestedMaxPriorityFeePerGas`
     // used by Metamask, see
     // https://github.com/MetaMask/core/blob/f5a4f52e17f407c6411e4ef9bd6685aab184b91d/packages/gas-fee-controller/src/fetchGasEstimatesViaEthFeeHistory/calculateGasFeeEstimatesForPriorityLevels.ts#L14
-    const MIN_MAX_PRIORITY_FEE_PER_GAS: WeiPerGas = WeiPerGas::new(1_500_000_000); //1.5 gwei
+    const MIN_MAX_PRIORITY_FEE_PER_GAS: WeiPerGas = WeiPerGas::new(3_000_000_000); //2.5 gwei
     let base_fee_per_gas_next_block = *fee_history.base_fee_per_gas.last().ok_or(
         TransactionFeeEstimationError::InvalidFeeHistory(
             "base_fee_per_gas should not be empty to be able to evaluate transaction price"

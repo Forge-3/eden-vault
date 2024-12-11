@@ -89,11 +89,7 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
                 .record_quarantined_reimbursement(index.clone());
         }
         EventType::Erc20TransferCompleted { from, to, amount } => {
-            log!(
-                INFO,
-                "ERC-20 transfer completed: from {:?} to {:?}, amount {:?}",
-                from.to_text(), to.to_text(), amount
-            );
+            state.record_transfer(*from, *to, *amount);
         }
     }
 }

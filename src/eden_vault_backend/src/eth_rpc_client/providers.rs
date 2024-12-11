@@ -17,12 +17,8 @@ pub(crate) const SEPOLIA_PROVIDERS: [RpcNodeProvider; 4] = [
 pub(crate) const LOCAL_PROVIDERS: [RpcNodeProvider; 1] =
     [RpcNodeProvider::Local(LocalService::Local)];
 
-pub(crate) const BSC_PROVIDERS: [RpcNodeProvider; 5] = [
-    RpcNodeProvider::BSC(BSCService::BlastApi),
+pub(crate) const BSC_PROVIDERS: [RpcNodeProvider; 1] = [
     RpcNodeProvider::BSC(BSCService::BlockPi),
-    RpcNodeProvider::BSC(BSCService::Drpc),
-    RpcNodeProvider::BSC(BSCService::PublicNode),
-    RpcNodeProvider::BSC(BSCService::LlamaRpc),
 ];
 
 pub(crate) const BSC_TESTNET_PROVIDERS: [RpcNodeProvider; 2] = [

@@ -77,6 +77,7 @@ cast send $MINTER_ADDRESS --value 100ether --rpc-url http://$EVM_RPC_URL --priva
 
 npx typechain --target ethers-v6 --out-dir ./types './out/**/ForgeToken.json'
 npx typechain --target ethers-v6 --out-dir ./types './out/**/CkErc20Deposit.json'
+npx typechain --target ethers-v6 --out-dir ./types './out/**/EdenTokenLL.json'
 
 cast send $TEST_WALLET --value 100ether --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY
 cast send $FORGE_TOKEN_ADDRESS --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY --gas-limit 65000 "transfer(address,uint256)" "$TEST_WALLET" "10000000000000000"

@@ -2,22 +2,23 @@ dfx canister call evm_rpc request '(variant {Custom=record {url="https://bsc-tes
 dfx canister call evm_rpc request '(variant {Custom=record {url="https://bsc-rpc.publicnode.com"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)'
 
 dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
-    ethereum_network = variant { BSCTestnet };
-    ecdsa_key_name = "test_key_1";
-    ethereum_block_height = variant { Latest };
+    ethereum_network = variant { BSC };
+    ecdsa_key_name = "key_1";
+    ethereum_block_height = variant { Finalized };
     minimum_withdrawal_amount = 5_000_000_000_000;
     next_transaction_nonce = 0;
-    last_scraped_block_number = 45994982;
-    admin = principal "42z5y-skeh6-5yq5k-37ixk-slrvz-e3jvs-3ftl7-7flrr-4swh6-wu5ea-kqe";
-    ckerc20_token_address = "0x890e77bA80f1D3f62Fe5d9259750f0C52F198b0f";
-    ckerc20_token_symbol = "ckFT";
+    last_scraped_block_number = 44756965;
+    admin = principal "xrloo-ocklc-djn2y-xduxq-ple6k-ycdzg-f4v5k-6pmve-v543p-ocloy-pae";
+    ckerc20_token_address = "0xe7875E08E3c85Dd49D4FF52A7d4C3a9c75C8a6A1";
+    ckerc20_token_symbol = "ckEDN";
 } })' --ic
 
-dfx deploy --argument='(variant { UpgradeArg = record {
-    next_transaction_nonce = opt 0;
-    minimum_withdrawal_amount = opt 5_000_000_000_000;
-    ethereum_block_height = opt variant { Latest };
-    erc20_helper_contract_address = opt "0xaDc4434fD98D5dA23Bc0DCd6C281BBE2E021D7c1";
-    last_erc20_scraped_block_number = opt 46211711;
+dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
+    erc20_helper_contract_address = opt "0x88603bc36671000B3840DB8C1eE59d9573f254E7";
     evm_rpc_id = opt principal "7hfb6-caaaa-aaaar-qadga-cai";
-} })' --network ic eden_vault_backend
+} })' --network ic --upgrade-unchanged
+
+
+dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {} })' --network ic --upgrade-unchanged
+
+forge create ./src/ERC20DepositHelper.sol:CkErc20Deposit --rpc-url https://bsc-dataseed.bnbchain.org --private-key "" --constructor-args "0x7915cb135A7d388Bc70Bd5bB03F4C871380afC5F"

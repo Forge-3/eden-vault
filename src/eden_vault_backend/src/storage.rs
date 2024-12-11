@@ -69,3 +69,30 @@ where
 {
     EVENTS.with(|events| f(Box::new(events.borrow().iter())))
 }
+
+/// Appends the event to the event log.
+pub fn retry_tx_events() {
+    EVENTS
+        .with(|events| {
+            let events = events.borrow().iter().filter(|event| {
+                match &event.payload {
+                    EventType::Init(_) => true,
+                    EventType::Upgrade(_) => true,
+                    EventType::InvalidDeposit { event_source: _, reason: _ } => true,
+                    EventType::SyncedToBlock { block_number: _ } => true,
+                    EventType::CreatedTransaction { withdrawal_id: _, transaction: _ } => false,
+                    EventType::SignedTransaction { withdrawal_id: _, transaction: _ } => false,
+                    EventType::ReplacedTransaction { withdrawal_id: _, transaction: _ } => true,
+                    EventType::FinalizedTransaction { withdrawal_id: _, transaction_receipt: _ } => true,
+                    EventType::AcceptedErc20Deposit(_) => true,
+                    EventType::AcceptedErc20WithdrawalRequest(_) => true,
+                    EventType::MintedCkErc20 { event_source: _, principal: _, amount: _ } => true,
+                    EventType::SyncedErc20ToBlock { block_number: _ } => true,
+                    EventType::QuarantinedDeposit { event_source: _ } => true,
+                    EventType::QuarantinedReimbursement { index: _ } => true,
+                    EventType::SkippedBlockForContract { contract_address: _, block_number: _ } => true,
+                    EventType::Erc20TransferCompleted { from: _, to: _, amount: _ } => true,
+                }
+            }).collect::<Vec<_>>();
+        });
+}

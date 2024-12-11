@@ -1,7 +1,7 @@
 use crate::endpoints::CandidBlockTag;
 use crate::logs::INFO;
 use crate::state::audit::{process_event, replay_events, EventType};
-use crate::state::mutate_state;
+use crate::state::{mutate_state, read_state};
 use crate::state::STATE;
 use crate::storage::total_event_count;
 use candid::{CandidType, Deserialize, Nat, Principal};
@@ -39,6 +39,15 @@ pub fn post_upgrade(upgrade_args: Option<UpgradeArg>) {
     if let Some(args) = upgrade_args {
         mutate_state(|s| process_event(s, EventType::Upgrade(args)))
     }
+
+    read_state(|s| {
+        let withdraw_count = s.withdraw_count.clone();
+        log!(
+            INFO,
+            "[upgrade]: withdraw_count {withdraw_count}"
+        );
+    });
+
 
     let end = ic_cdk::api::instruction_counter();
 

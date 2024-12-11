@@ -41,7 +41,7 @@ mod tests;
 // We expect most of the calls to contain zero events.
 const ETH_GET_LOGS_INITIAL_RESPONSE_SIZE_ESTIMATE: u64 = 100;
 // DEV: 1
-const TOTAL_NUMBER_OF_PROVIDERS: u8 = 2;
+const TOTAL_NUMBER_OF_PROVIDERS: u8 = 1;
 
 #[derive(Debug)]
 pub struct EthRpcClient {
@@ -80,19 +80,7 @@ impl CustomEvmRpc {
             CustomEvmRpc::BSC => EvmRpcServices::Custom {
                 chain_id: client.chain.chain_id(),
                 services: [RpcApi {
-                    url: String::from("https://bsc-mainnet.public.blastapi.io"),
-                    headers: None,
-                }, RpcApi {
                     url: String::from("https://bsc.blockpi.network/v1/rpc/public"),
-                    headers: None,
-                }, RpcApi {
-                    url: String::from("https://bsc.drpc.org"),
-                    headers: None,
-                }, RpcApi {
-                    url: String::from("https://bsc-rpc.publicnode.com"),
-                    headers: None,
-                }, RpcApi {
-                    url: String::from("https://binance.llamarpc.com"),
                     headers: None,
                 }, ]
                 .to_vec(),
@@ -146,7 +134,7 @@ impl EthRpcClient {
                 EthereumNetwork::Mainnet => 3_u8,
                 EthereumNetwork::Sepolia => 2_u8,
                 EthereumNetwork::Local => 1_u8,
-                EthereumNetwork::BSC=> 3_u8,
+                EthereumNetwork::BSC=> 1_u8,
                 EthereumNetwork::BSCTestnet => 2_u8,
             };
             assert!(

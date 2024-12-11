@@ -19,7 +19,7 @@ const WITHDRAWAL_REQUESTS_BATCH_SIZE: usize = 5;
 const TRANSACTIONS_TO_SIGN_BATCH_SIZE: usize = 5;
 const TRANSACTIONS_TO_SEND_BATCH_SIZE: usize = 5;
 
-pub const CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT: GasAmount = GasAmount::new(65_000);
+pub const CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT: GasAmount = GasAmount::new(74_514);
 
 pub async fn process_retrieve_eth_requests() {
     let _guard = match TimerGuard::new(TaskType::RetrieveEth) {
