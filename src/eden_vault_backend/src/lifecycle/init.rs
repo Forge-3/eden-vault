@@ -121,7 +121,7 @@ impl TryFrom<InitArg> for State {
             evm_rpc_id: None,
             ckerc20_tokens: (ckerc20_token_address, ckerc20_token_symbol),
             erc20_balances: Default::default(),
-            withdraw_count: Nat::from(0u128),
+            withdraw_count: 0u8.into(),
             withdraw_fee_value,
         };
         state.validate_config()?;

@@ -1,4 +1,5 @@
 use crate::address::ecdsa_public_key_to_address;
+use crate::checked_amount::CheckedAmountOf;
 use crate::erc20::CkTokenSymbol;
 use crate::eth_logs::{EventSource, ReceivedEvent};
 use crate::eth_rpc::BlockTag;
@@ -7,7 +8,7 @@ use crate::lifecycle::upgrade::UpgradeArg;
 use crate::lifecycle::EthereumNetwork;
 use crate::logs::{DEBUG, INFO};
 use crate::numeric::{BlockNumber, Erc20Value, TransactionNonce, Wei};
-use crate::state::transactions::{Erc20WithdrawalRequest, TransactionCallData, WithdrawalRequest};
+use crate::state::transactions::{Erc20WithdrawalRequest, TransactionCallData};
 use crate::tx::GasFeeEstimate;
 use candid::{Nat, Principal};
 use ic_canister_log::log;
@@ -23,6 +24,9 @@ use transactions::EthTransactions;
 pub mod audit;
 pub mod event;
 pub mod transactions;
+
+pub enum WithdrawId {}
+pub type WithdrawIdValue = CheckedAmountOf<WithdrawId>;
 
 #[cfg(test)]
 mod tests;
@@ -90,7 +94,7 @@ pub struct State {
     /// - 1 item: ckERC20 token symbol
     pub ckerc20_tokens: (Address, CkTokenSymbol),
 
-    pub withdraw_count: Nat,
+    pub withdraw_count: WithdrawIdValue,
 
     pub withdraw_fee_value: Erc20Value,
 }
@@ -271,11 +275,19 @@ impl State {
         self.erc20_balances.principal_erc20_add(principal, amount);
     }
 
+
     pub fn record_erc20_withdrawal_request(&mut self, request: Erc20WithdrawalRequest) {
-        if self.withdraw_count < request.id {
-            self.withdraw_count = request.id.clone();
-        }
+        self.erc20_balances
+            .principal_erc20_sub(request.from, self.withdraw_fee_value);
+        self.erc20_balances
+            .principal_erc20_add(self.admin.clone(), self.withdraw_fee_value);
+
+        self.erc20_balances
+            .principal_erc20_sub(request.from, request.withdrawal_amount);
+
+        log!(INFO, "sssssssssssssss {request:?}");
         self.eth_transactions.record_withdrawal_request(request);
+        self.withdraw_count = self.withdraw_count.checked_add(1u8.into()).expect("BUG: withdraw_count out of range");
     }
 
     pub fn record_finalized_transaction(
@@ -294,6 +306,10 @@ impl State {
         // requests and responses in logs.
         self.http_request_counter = self.http_request_counter.wrapping_add(1);
         current_request_id
+    }
+
+    pub fn next_withdrawal_id(&self) -> WithdrawIdValue {
+        self.withdraw_count
     }
 
     fn update_balance_upon_deposit(&mut self, event: &ReceivedEvent) {
@@ -587,48 +603,6 @@ impl Default for EthBalance {
 }
 
 impl EthBalance {
-    fn eth_balance_add(&mut self, value: Wei) {
-        self.eth_balance = self.eth_balance.checked_add(value).unwrap_or_else(|| {
-            panic!(
-                "BUG: overflow when adding {} to {}",
-                value, self.eth_balance
-            )
-        })
-    }
-
-    fn eth_balance_sub(&mut self, value: Wei) {
-        self.eth_balance = self.eth_balance.checked_sub(value).unwrap_or_else(|| {
-            panic!(
-                "BUG: underflow when subtracting {} from {}",
-                value, self.eth_balance
-            )
-        })
-    }
-
-    fn total_effective_tx_fees_add(&mut self, value: Wei) {
-        self.total_effective_tx_fees = self
-            .total_effective_tx_fees
-            .checked_add(value)
-            .unwrap_or_else(|| {
-                panic!(
-                    "BUG: overflow when adding {} to {}",
-                    value, self.total_effective_tx_fees
-                )
-            })
-    }
-
-    fn total_unspent_tx_fees_add(&mut self, value: Wei) {
-        self.total_unspent_tx_fees = self
-            .total_unspent_tx_fees
-            .checked_add(value)
-            .unwrap_or_else(|| {
-                panic!(
-                    "BUG: overflow when adding {} to {}",
-                    value, self.total_unspent_tx_fees
-                )
-            })
-    }
-
     pub fn eth_balance(&self) -> Wei {
         self.eth_balance
     }

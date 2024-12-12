@@ -174,32 +174,21 @@ async fn withdraw_erc20(
     })?;
     let ckerc20_withdrawal_amount =
         Erc20Value::try_from(amount).expect("ERROR: failed to convert Nat to u256");
+        let erc20_tx_fee = estimate_erc20_transaction_fee().await.ok_or_else(|| {
+            WithdrawErc20Error::TemporarilyUnavailable("Failed to retrieve current gas fee".to_string())
+        })?;
 
-    let withdraw_fee = read_state(|s| s.withdraw_fee_value.clone());
-    let withdraw_fee = Erc20Value::try_from(withdraw_fee).expect("ERROR: failed to convert Nat to u256");
-
-    let total_amount_needed = ckerc20_withdrawal_amount
-    .checked_add(withdraw_fee)
-    .expect("BUG: Overflow when calculating total amount needed");
-
-    let caller_balance = read_state(|s| s.erc20_balances.balance_of(&caller));
-    if caller_balance < total_amount_needed {
-        return Err(WithdrawErc20Error::InsufficientFunds {
-            available: Nat::from(caller_balance),
-            required: Nat::from(total_amount_needed),
-        });
-    }
-
-    let erc20_tx_fee = estimate_erc20_transaction_fee().await.ok_or_else(|| {
-        WithdrawErc20Error::TemporarilyUnavailable("Failed to retrieve current gas fee".to_string())
-    })?;
-
-    mutate_state(|s| {
-        s.erc20_balances
-        .principal_erc20_sub(caller, withdraw_fee);
-        s.erc20_balances
-        .principal_erc20_add(s.admin.clone(), withdraw_fee);
-    });
+        let withdraw_fee = read_state(|s| s.withdraw_fee_value);
+        let total_amount_needed = ckerc20_withdrawal_amount
+            .checked_add(withdraw_fee)
+            .expect("BUG: Overflow when calculating total amount needed");
+        let caller_balance = read_state(|s| s.erc20_balances.balance_of(&caller));
+        if caller_balance < total_amount_needed {
+            return Err(WithdrawErc20Error::InsufficientFunds {
+                available: Nat::from(caller_balance),
+                required: Nat::from(total_amount_needed),
+            });
+        }
 
     let ckerc20_tokens = read_state(|s| s.ckerc20_tokens.clone());
     log!(
@@ -208,10 +197,6 @@ async fn withdraw_erc20(
         ckerc20_withdrawal_amount,
         ckerc20_tokens.1
     );
-    mutate_state(|s| {
-        s.erc20_balances
-            .principal_erc20_sub(caller.into(), ckerc20_withdrawal_amount);
-    });
 
     let withdrawal_request = Erc20WithdrawalRequest {
         max_transaction_fee: erc20_tx_fee,
@@ -220,11 +205,7 @@ async fn withdraw_erc20(
         from: caller,
         from_subaccount: None,
         created_at: ic_cdk::api::time(),
-        // TODO
-        id: mutate_state(|s| {
-            s.withdraw_count += 1_u128;
-            s.withdraw_count.clone()
-        }),
+        id: read_state(|s| s.next_withdrawal_id()).into(),
     };
     log!(
         INFO,
@@ -554,18 +535,8 @@ fn check_candid_interface_compatibility() {
 }
 
 #[update]
-async fn set_admin(new_admin: candid::Principal) -> Result<String, String> {
-    let caller = validate_caller_not_anonymous();
-    let current_admin = read_state(|s| s.admin.clone());
-    if caller != current_admin {
-        return Err("ERROR: Only the current admin can set a new admin.".to_string());
-    }
-
-    mutate_state(|s| {
-        s.admin = new_admin;
-    });
-
-    Ok("Admin successfully updated.".to_string())
+async fn set_admin(_: Principal) -> Result<String, String> {
+    return Err("Call not implemented".to_string());
 }
 
 #[query]

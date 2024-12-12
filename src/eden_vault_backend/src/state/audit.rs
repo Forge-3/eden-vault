@@ -3,9 +3,7 @@ mod tests;
 
 pub use super::event::{Event, EventType};
 use super::State;
-use crate::storage::{record_event, with_event_iter};
-use ic_canister_log::log;
-use crate::logs::INFO;
+use crate::storage::{migrate_event, record_event, total_event_count, with_event_iter, with_old_event_iter};
 /// Updates the state to reflect the given state transition.
 // public because it's used in tests since process_event
 // requires canister infrastructure to retrieve time
@@ -109,7 +107,22 @@ pub fn process_event(state: &mut State, payload: EventType) {
 ///   * The first event in the log is not an Init event.
 ///   * One of the events in the log invalidates the minter's state invariants.
 pub fn replay_events() -> State {
+    if total_event_count() == 0 {
+        with_old_event_iter(|iter| replay_old_events_internal(iter));
+    }
     with_event_iter(|iter| replay_events_internal(iter))
+}
+
+pub fn replay_old_events_internal<T: IntoIterator<Item = Event>>(events: T) {
+    let events_iter = events.into_iter();
+    for event in events_iter {
+        match &event.payload {
+            EventType::CreatedTransaction { withdrawal_id: _, transaction: _} => (),
+            EventType::SignedTransaction { withdrawal_id: _, transaction: _ } => (),
+            EventType::AcceptedErc20WithdrawalRequest(_) => (),
+            _ => migrate_event(&event),
+        }
+    }
 }
 
 fn replay_events_internal<T: IntoIterator<Item = Event>>(events: T) -> State {

@@ -8,8 +8,11 @@ use ic_stable_structures::{
 use std::borrow::Cow;
 use std::cell::RefCell;
 
-const LOG_INDEX_MEMORY_ID: MemoryId = MemoryId::new(0);
-const LOG_DATA_MEMORY_ID: MemoryId = MemoryId::new(1);
+const OLD_LOG_INDEX_MEMORY_ID: MemoryId = MemoryId::new(0);
+const OLD_LOG_DATA_MEMORY_ID: MemoryId = MemoryId::new(1);
+
+const LOG_INDEX_MEMORY_ID: MemoryId = MemoryId::new(4);
+const LOG_DATA_MEMORY_ID: MemoryId = MemoryId::new(5);
 
 type VMem = VirtualMemory<DefaultMemoryImpl>;
 type EventLog = StableLog<Event, VMem, VMem>;
@@ -44,6 +47,24 @@ thread_local! {
                   ).expect("failed to initialize stable log")
               )
         );
+
+    static OLD_EVENTS: RefCell<EventLog> = MEMORY_MANAGER
+    .with(|m|
+            RefCell::new(
+                StableLog::init(
+                    m.borrow().get(OLD_LOG_INDEX_MEMORY_ID),
+                    m.borrow().get(OLD_LOG_DATA_MEMORY_ID)
+                ).expect("failed to initialize stable log")
+            )
+    );
+}
+
+pub fn migrate_event(payload: &Event) {
+    EVENTS
+        .with(|events| {
+            events.borrow().append(payload)
+        })
+        .expect("recording an event should succeed");
 }
 
 /// Appends the event to the event log.
@@ -63,9 +84,21 @@ pub fn total_event_count() -> u64 {
     EVENTS.with(|events| events.borrow().len())
 }
 
+/// Returns the total number of events in the audit log.
+pub fn total_old_event_count() -> u64 {
+    OLD_EVENTS.with(|events| events.borrow().len())
+}
+
 pub fn with_event_iter<F, R>(f: F) -> R
 where
     F: for<'a> FnOnce(Box<dyn Iterator<Item = Event> + 'a>) -> R,
 {
     EVENTS.with(|events| f(Box::new(events.borrow().iter())))
+}
+
+pub fn with_old_event_iter<F, R>(f: F) -> R
+where
+    F: for<'a> FnOnce(Box<dyn Iterator<Item = Event> + 'a>) -> R,
+{
+    OLD_EVENTS.with(|events| f(Box::new(events.borrow().iter())))
 }
