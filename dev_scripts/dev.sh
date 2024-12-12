@@ -1,4 +1,19 @@
+#!/bin/bash
+
 source ./dev_scripts/config.sh
+
+process_block_number() {
+    local block_number=$1
+
+    # Check if the block number starts with "0x"
+    if [[ $block_number == 0x* ]]; then
+        # Convert hex to decimal by stripping "0x" and using base 16
+        echo $((16#${block_number:2}))
+    else
+        # Return the block number as is (assuming it's decimal)
+        echo $block_number
+    fi
+}
 
 dfx killall
 pkill anvil
@@ -6,10 +21,13 @@ pkill gnome-terminal
 sleep 6s
 
 gnome-terminal \
-    --tab --title="Anvil - EVM blockchain" -- bash -c "anvil --block-time 3; exec bash" 
+    --tab --title="Anvil - EVM blockchain" -- bash -c "anvil --block-time 3 --fork-url https://bsc-dataseed.bnbchain.org; exec bash" 
 gnome-terminal \
     --tab --title="DFX - IC blockchain" -- bash -c "dfx start --clean; exec bash"
 sleep 6s
+
+BLOCK_NUMBER=$(cast block latest --json | jq -r '.number')
+LAST_BLOCK=$(process_block_number $BLOCK_NUMBER)
 
 dfx canister create eden_vault_backend
 dfx canister create evm_rpc
@@ -46,7 +64,7 @@ dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     ethereum_block_height = variant { Latest };
     minimum_withdrawal_amount = 5_000_000_000_000;
     next_transaction_nonce = 0;
-    last_scraped_block_number = 0;
+    last_scraped_block_number = '$LAST_BLOCK';
     admin = principal "nxu2q-em5br-fw5za-34owr-pxlfb-p6g73-6fe6i-sgggr-vtt27-hnxqk-gqe";
     ckerc20_token_address = "'"$EDEN_TOKEN_ADDRESS"'";
     ckerc20_token_symbol = "ckEDEN";

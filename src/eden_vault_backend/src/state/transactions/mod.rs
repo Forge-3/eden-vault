@@ -528,6 +528,7 @@ impl EthTransactions {
             .iter()
             .filter(|(nonce, _withdrawal_id, _signed_tx)| *nonce >= &first_pending_tx_nonce)
         {
+
             let last_signed_tx = signed_tx.last().expect("BUG: empty sent transactions list");
             match last_signed_tx.resubmit(current_gas_fee.clone()) {
                 Ok(Some(new_tx)) => {
@@ -537,6 +538,11 @@ impl EthTransactions {
                     // the transaction fee is still up-to-date but because the transaction did not get included,
                     // we re-send it as is to be sure that it remains known to the mempool and hopefully be included at some point.
                     // Since we always re-send the last non-included transactions in sent_tx, there is nothing to do.
+                    // -----------------------------------------------------
+                    // We only replate tx if there was a issue with chain id
+                    if let Some(new_tx) = last_signed_tx.resubmit_chain_id(){
+                        transactions_to_resubmit.push(Ok((withdrawal_id.clone(), new_tx)));
+                    }
                 }
                 Err(crate::tx::ResubmitTransactionError::InsufficientTransactionFee {
                     allowed_max_transaction_fee,
@@ -558,10 +564,13 @@ impl EthTransactions {
     }
 
     pub fn record_resubmit_transaction(&mut self, new_tx: Eip1559TransactionRequest) {
+        use ic_canister_log::log;
         let nonce = new_tx.nonce;
         let (ledger_burn_index, last_sent_tx) =
             Self::expect_last_sent_tx_entry(&self.sent_tx, &nonce);
-        assert!(equal_ignoring_fee_and_amount(last_sent_tx.as_ref().transaction(), &new_tx),
+        let chain_id = new_tx.chain_id;
+        log!(DEBUG, "[record_resubmit_transaction]: Resubmiting transaction with chain_id: {chain_id}");
+        assert!(equal_ignoring_fee_and_amount_and_chain_id(last_sent_tx.as_ref().transaction(), &new_tx),
                 "BUG: mismatch between last sent transaction {last_sent_tx:?} and the transaction to resubmit {new_tx:?}");
         Self::cleanup_failed_resubmitted_transactions(&mut self.created_tx, &nonce);
         let new_tx = last_sent_tx.clone_resubmission_strategy(new_tx);
@@ -1078,7 +1087,7 @@ impl TransactionCallData {
 /// * `max_fee_per_gas`
 /// * `max_priority_fee_per_gas`
 /// * `amount` (because the cost of the transaction is paid by the beneficiary and so influencing the fee does influence the transaction amount)
-fn equal_ignoring_fee_and_amount(
+fn equal_ignoring_fee_and_amount_and_chain_id(
     lhs: &Eip1559TransactionRequest,
     rhs: &Eip1559TransactionRequest,
 ) -> bool {
@@ -1086,6 +1095,7 @@ fn equal_ignoring_fee_and_amount(
     rhs_with_lhs_fee_and_amount.max_fee_per_gas = lhs.max_fee_per_gas;
     rhs_with_lhs_fee_and_amount.max_priority_fee_per_gas = lhs.max_priority_fee_per_gas;
     rhs_with_lhs_fee_and_amount.amount = lhs.amount;
+    rhs_with_lhs_fee_and_amount.chain_id = lhs.chain_id;
 
     lhs == &rhs_with_lhs_fee_and_amount
 }

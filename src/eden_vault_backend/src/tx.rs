@@ -180,6 +180,26 @@ impl SignedTransactionRequest {
             ..transaction_request.clone()
         }))
     }
+
+    pub fn resubmit_chain_id(
+        &self,
+    ) -> Option<Eip1559TransactionRequest> {
+        let chain_id = read_state(|s| s.ethereum_network().chain_id());
+        let transaction_request = self.transaction.transaction();
+        let tx_chain_id = transaction_request.chain_id;
+        if chain_id == transaction_request.chain_id {
+            return None;
+        }
+
+        log!(
+            DEBUG,
+            "[resubmit_chain_id]: Created transaction to resubmit. Old chain_id {tx_chain_id}, new chain_id {chain_id}"
+        );
+        Some(Eip1559TransactionRequest {
+            chain_id: chain_id,
+            ..transaction_request.clone()
+        })
+    }
 }
 
 impl rlp::Encodable for Eip1559TransactionRequest {
