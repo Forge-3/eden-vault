@@ -285,7 +285,6 @@ impl State {
         self.erc20_balances
             .principal_erc20_sub(request.from, request.withdrawal_amount);
 
-        log!(INFO, "sssssssssssssss {request:?}");
         self.eth_transactions.record_withdrawal_request(request);
         self.withdraw_count = self.withdraw_count.checked_add(1u8.into()).expect("BUG: withdraw_count out of range");
     }

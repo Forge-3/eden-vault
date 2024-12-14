@@ -56,8 +56,11 @@ cast send $EDEN_TOKEN_ADDRESS \
 dfx deploy evm_rpc --argument '(record {})'
 set -o allexport; source .env; set +o allexport
 
-dfx canister call evm_rpc request "(variant {Custom=record {url=\"http://$EVM_RPC_URL\"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)" --wallet $(dfx identity get-wallet) --with-cycles 1000000000
-
+dfx canister call evm_rpc request \
+  '(variant {Custom=record {url="http://'"$EVM_RPC_URL"'"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' \
+  --wallet "$(dfx identity get-wallet)" \
+  --with-cycles 1000000000
+  
 dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     ethereum_network = variant { Local };
     ecdsa_key_name = "dfx_test_key";

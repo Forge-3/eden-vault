@@ -3,7 +3,7 @@ use crate::logs::INFO;
 use crate::state::audit::{process_event, replay_events, EventType};
 use crate::state::{mutate_state, read_state};
 use crate::state::STATE;
-use crate::storage::total_event_count;
+use crate::storage::{total_event_count, total_old_event_count};
 use candid::{CandidType, Deserialize, Nat, Principal};
 use ic_canister_log::log;
 use minicbor::{Decode, Encode};

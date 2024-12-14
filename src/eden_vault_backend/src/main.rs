@@ -1,10 +1,11 @@
 use crate::checked_amount::CheckedAmountOf;
 use candid::{Nat, Principal};
 use eden_vault_backend::address::{validate_address_as_destination, AddressValidationError};
-use eden_vault_backend::checked_amount;
+use eden_vault_backend::user::{does_user_already_exist, get_user_by, GetUserBy, User, UserError};
+use eden_vault_backend::{checked_amount, user};
 use eden_vault_backend::deposit::scrape_logs;
 use eden_vault_backend::endpoints::ckerc20::{
-    RetrieveErc20Request, WithdrawErc20Arg, WithdrawErc20Error,
+    RetrieveErc20Request, TransferErc20Error, WithdrawErc20Arg, WithdrawErc20Error
 };
 use eden_vault_backend::endpoints::events::{GetEventsArg, GetEventsResult};
 use eden_vault_backend::endpoints::{
@@ -20,6 +21,7 @@ use eden_vault_backend::state::transactions::{Erc20WithdrawalRequest, Reimbursem
 use eden_vault_backend::state::{
     lazy_call_ecdsa_public_key, mutate_state, read_state, transactions, State, STATE,
 };
+use eden_vault_backend::storage::push_user;
 use eden_vault_backend::tx::lazy_refresh_gas_fee_estimate;
 use eden_vault_backend::withdraw::{
     process_retrieve_eth_requests, CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
@@ -157,6 +159,9 @@ async fn withdraw_erc20(
     WithdrawErc20Arg { amount, recipient }: WithdrawErc20Arg,
 ) -> Result<RetrieveErc20Request, WithdrawErc20Error> {
     let caller = validate_caller_not_anonymous();
+
+    let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+        .ok_or(WithdrawErc20Error::CallerNotFound(caller))?;
     let _guard = retrieve_withdraw_guard(caller).unwrap_or_else(|e| {
         ic_cdk::trap(&format!(
             "Failed retrieving guard for principal {}: {:?}",
@@ -172,11 +177,12 @@ async fn withdraw_erc20(
             address: address.to_string(),
         },
     })?;
+    let _recipient_as_user = get_user_by(GetUserBy::EthAddress(destination))
+        .ok_or(WithdrawErc20Error::RecipientNotFound(destination.to_string()))?;
+
     let ckerc20_withdrawal_amount =
         Erc20Value::try_from(amount).expect("ERROR: failed to convert Nat to u256");
-        let erc20_tx_fee = estimate_erc20_transaction_fee().await.ok_or_else(|| {
-            WithdrawErc20Error::TemporarilyUnavailable("Failed to retrieve current gas fee".to_string())
-        })?;
+
 
         let withdraw_fee = read_state(|s| s.withdraw_fee_value);
         let total_amount_needed = ckerc20_withdrawal_amount
@@ -191,6 +197,10 @@ async fn withdraw_erc20(
         }
 
     let ckerc20_tokens = read_state(|s| s.ckerc20_tokens.clone());
+    let erc20_tx_fee = estimate_erc20_transaction_fee().await.ok_or_else(|| {
+        WithdrawErc20Error::TemporarilyUnavailable("Failed to retrieve current gas fee".to_string())
+    })?;
+
     log!(
         INFO,
         "[withdraw_erc20]: burning {} {}",
@@ -540,9 +550,11 @@ async fn set_admin(_: Principal) -> Result<String, String> {
 }
 
 #[query]
-async fn erc20_my_balance() -> Nat {
+async fn erc20_my_balance() -> Result<Nat, UserError> {
     let caller = validate_caller_not_anonymous();
-    read_state(|s| s.erc20_balances.balance_of(&caller).try_into().unwrap())
+    let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+        .ok_or(UserError::CallerNotFound(caller))?;
+    Ok(read_state(|s| s.erc20_balances.balance_of(&caller).try_into().unwrap()))
 }
 
 #[query]
@@ -556,25 +568,26 @@ async fn erc20_balance() -> Nat {
 }
 
 #[update]
-async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<String, String> {
+async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<(), TransferErc20Error> {
     let caller = validate_caller_not_anonymous();
+    let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+        .ok_or(TransferErc20Error::CallerNotFound(caller))?;
+    let _receiver_as_user = get_user_by(GetUserBy::Principal(receiver))
+        .ok_or(TransferErc20Error::CallerNotFound(receiver))?;
 
-    let checked_amount = CheckedAmountOf::<Erc20Tag>::try_from(amount.clone()).map_err(|err| {
-        format!(
-            "Failed to convert Nat to CheckedAmountOf<Erc20Tag>: {}",
-            err
-        )
-    })?;
+    let checked_amount = CheckedAmountOf::<Erc20Tag>::try_from(amount.clone())
+        .expect("ERROR: failed to convert Nat to u256");
 
     read_state(|s| {
         let caller_balance = s.erc20_balances.balance_of(&caller);
         if caller_balance < checked_amount {
-            return Err("ERROR: Insufficient balance".to_string());
+            return Err(TransferErc20Error::InsufficientFunds{
+                available: caller_balance.into(),
+                required: amount,
+            });
         }
         Ok(())
     })?;
-    
-
     mutate_state(|s| {
         process_event(
             s,
@@ -584,8 +597,7 @@ async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<String, Stri
                 amount: checked_amount,
             },
         );
-
-        Ok("Transfer succeded.".to_string())
+        Ok(())
     })
 }
 
@@ -594,6 +606,16 @@ async fn smart_contract_address() -> String {
     read_state(|s| s.erc20_helper_contract_address.clone())
     .map(|a| a.to_string())
     .unwrap_or("N/A".to_string())
+}
+
+#[update]
+fn create_new_user(user_id: [u8; 12], principal: Principal, address_string: String) -> Result<(), String>{
+        let user = User::new(user_id, principal, address_string);
+        if does_user_already_exist(&user) {
+            return Err("The user with such data already exists.".to_string())
+        }
+        push_user(&user);
+        Ok(())
 }
 
 ic_cdk::export_candid!();

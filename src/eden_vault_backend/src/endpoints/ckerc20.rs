@@ -50,6 +50,18 @@ pub enum WithdrawErc20Error {
         available: Nat,
         required: Nat,
     },
+    CallerNotFound(Principal),
+    RecipientNotFound(String)
+}
+
+#[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]
+pub enum TransferErc20Error {
+    CallerNotFound(Principal),
+    RecipientNotFound(String),
+    InsufficientFunds { 
+        available: Nat,
+        required: Nat,
+    },
 }
 
 #[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]

@@ -82,12 +82,14 @@ async fn resubmit_transactions_batch(
     if read_state(|s| s.eth_transactions.is_sent_tx_empty()) {
         return;
     }
+
     let latest_transaction_count = match latest_transaction_count {
         Some(latest_transaction_count) => latest_transaction_count,
         None => {
             return;
         }
     };
+
     let transactions_to_resubmit = read_state(|s| {
         s.eth_transactions
             .create_resubmit_transactions(latest_transaction_count, gas_fee_estimate.clone())
@@ -300,7 +302,12 @@ async fn finalize_transactions_batch() {
                     }
                 }
             }
+            
             let actual_finalized_withdrawal_ids: BTreeSet<_> = receipts.keys().cloned().collect();
+            log!(
+                INFO,
+                "actual_finalized_withdrawal_ids {actual_finalized_withdrawal_ids:?}",
+            );
             assert_eq!(
                 expected_finalized_withdrawal_ids, actual_finalized_withdrawal_ids,
                 "ERROR: unexpected transaction receipts for some withdrawal IDs"

@@ -1,9 +1,10 @@
-use crate::state::event::{Event, EventType};
+use crate::{state::event::{Event, EventType}, user::User};
 use ic_stable_structures::{
     log::Log as StableLog,
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
     storable::{Bound, Storable},
     DefaultMemoryImpl,
+    Vec as StableVec
 };
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -14,8 +15,11 @@ const OLD_LOG_DATA_MEMORY_ID: MemoryId = MemoryId::new(1);
 const LOG_INDEX_MEMORY_ID: MemoryId = MemoryId::new(4);
 const LOG_DATA_MEMORY_ID: MemoryId = MemoryId::new(5);
 
-type VMem = VirtualMemory<DefaultMemoryImpl>;
+const VEC_DATA_MEMORY_ID: MemoryId = MemoryId::new(6);
+
+pub type VMem = VirtualMemory<DefaultMemoryImpl>;
 type EventLog = StableLog<Event, VMem, VMem>;
+type UsersVec = StableVec<User, VMem>;
 
 impl Storable for Event {
     fn to_bytes(&self) -> Cow<[u8]> {
@@ -36,6 +40,15 @@ thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
         MemoryManager::init(DefaultMemoryImpl::default())
     );
+
+    static USERS: RefCell<UsersVec> = MEMORY_MANAGER
+        .with(|m| 
+            RefCell::new(
+                StableVec::new(
+                    m.borrow().get(VEC_DATA_MEMORY_ID)
+                ).expect("failed to initialize stable vec")
+            )
+        );
 
     /// The log of the ckETH state modifications.
     static EVENTS: RefCell<EventLog> = MEMORY_MANAGER
@@ -59,10 +72,39 @@ thread_local! {
     );
 }
 
+pub fn push_user(user: &User) {
+    USERS
+        .with(|users| {
+            users.borrow().push(
+                user
+            )
+        })
+        .expect("recording an event should succeed");
+}
+
+pub fn with_users_iter<F, R>(f: F) -> R
+where
+    F: for<'a> FnOnce(Box<dyn Iterator<Item = User> + 'a>) -> R,
+{
+    USERS.with(|user| f(Box::new(user.borrow().iter())))
+}
+
 pub fn migrate_event(payload: &Event) {
     EVENTS
         .with(|events| {
             events.borrow().append(payload)
+        })
+        .expect("recording an event should succeed");
+}
+
+/// Appends the event to the event log.
+pub fn record_old_event(payload: EventType) {
+    OLD_EVENTS
+        .with(|events| {
+            events.borrow().append(&Event {
+                timestamp: ic_cdk::api::time(),
+                payload,
+            })
         })
         .expect("recording an event should succeed");
 }

@@ -19,6 +19,8 @@ dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
 } })' --network ic --upgrade-unchanged
 
 
-dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {} })' --upgrade-unchanged
+dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
+    next_transaction_nonce = opt 1
+} })' --upgrade-unchanged --network ic
 
 forge create ./src/ERC20DepositHelper.sol:CkErc20Deposit --rpc-url https://bsc-dataseed.bnbchain.org --private-key "" --constructor-args "0x7915cb135A7d388Bc70Bd5bB03F4C871380afC5F"
