@@ -51,7 +51,6 @@ pub enum WithdrawErc20Error {
         required: Nat,
     },
     CallerNotFound(Principal),
-    RecipientNotFound(String)
 }
 
 #[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]

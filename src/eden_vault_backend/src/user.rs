@@ -93,6 +93,20 @@ pub fn get_user_by(get_by: GetUserBy) -> Option<User> {
     }
 }
 
+pub trait OptionUser<User> {
+    fn get_user_id(&self) -> Option<String>;
+}
+
+impl OptionUser<User> for Option<User> {
+    fn get_user_id(&self) -> Option<String> {
+        match self {
+            Some(user) => Some(hex::encode(user.get_id())),
+            None => None,
+        }
+    }
+}
+
+
 #[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]
 pub enum UserError {
     CallerNotFound(Principal),

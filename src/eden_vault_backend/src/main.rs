@@ -35,6 +35,7 @@ use ic_ethereum_types::Address;
 use std::convert::TryFrom;
 use std::str::FromStr;
 use std::time::Duration;
+use eden_vault_backend::user::OptionUser;
 
 pub const SEPOLIA_TEST_CHAIN_ID: u64 = 11155111;
 
@@ -149,6 +150,9 @@ fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<WithdrawalDeta
                     .clone()
                     .map(|subaccount| subaccount.0),
                 status,
+                from_user_id: get_user_by(
+                    GetUserBy::Principal(request.from())
+                ).get_user_id()
             })
             .collect()
     })
@@ -159,9 +163,12 @@ async fn withdraw_erc20(
     WithdrawErc20Arg { amount, recipient }: WithdrawErc20Arg,
 ) -> Result<RetrieveErc20Request, WithdrawErc20Error> {
     let caller = validate_caller_not_anonymous();
+    let admin = read_state(|s| s.admin);
 
-    let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
-        .ok_or(WithdrawErc20Error::CallerNotFound(caller))?;
+    if admin != caller {
+        let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+            .ok_or(WithdrawErc20Error::CallerNotFound(caller))?;
+    }
     let _guard = retrieve_withdraw_guard(caller).unwrap_or_else(|e| {
         ic_cdk::trap(&format!(
             "Failed retrieving guard for principal {}: {:?}",
@@ -177,8 +184,6 @@ async fn withdraw_erc20(
             address: address.to_string(),
         },
     })?;
-    let _recipient_as_user = get_user_by(GetUserBy::EthAddress(destination))
-        .ok_or(WithdrawErc20Error::RecipientNotFound(destination.to_string()))?;
 
     let ckerc20_withdrawal_amount =
         Erc20Value::try_from(amount).expect("ERROR: failed to convert Nat to u256");
@@ -360,6 +365,7 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     log_index: log_index.into(),
                     from_address: from_address.to_string(),
                     value: value.into(),
+                    to_user_id: get_user_by(GetUserBy::Principal(principal)).get_user_id(),
                     principal,
                     erc20_contract_address: erc20_contract_address.to_string(),
                 },
@@ -427,7 +433,8 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     from,
                     from_subaccount: from_subaccount.map(Subaccount::to_bytes),
                     created_at,
-                    withdrawal_id: id
+                    withdrawal_id: id,
+                    from_user_id: get_user_by(GetUserBy::Principal(from)).get_user_id(),
                 },
                 EventType::MintedCkErc20 {
                     event_source,
@@ -436,7 +443,8 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                 } => EP::MintedCkErc20 {
                     event_source: map_event_source(event_source),
                     principal,
-                    amount: amount.into()
+                    amount: amount.into(),
+                    to_user_id: get_user_by(GetUserBy::Principal(principal)).get_user_id(),
                 },
                 EventType::QuarantinedDeposit { event_source } => EP::QuarantinedDeposit {
                     event_source: map_event_source(event_source),
@@ -446,7 +454,15 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                 },
                 EventType::Erc20TransferCompleted { from, to, amount } => EP::Erc20TransferCompleted {
                     from,
+                    from_user_id: 
+                        get_user_by(
+                            GetUserBy::Principal(from)
+                        ).get_user_id(),
                     to,
+                    to_user_id:  
+                        get_user_by(
+                            GetUserBy::Principal(to)
+                        ).get_user_id(),
                     amount: amount.into(),
                 },
             },
@@ -552,8 +568,12 @@ async fn set_admin(_: Principal) -> Result<String, String> {
 #[query]
 async fn erc20_my_balance() -> Result<Nat, UserError> {
     let caller = validate_caller_not_anonymous();
-    let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
-        .ok_or(UserError::CallerNotFound(caller))?;
+    let admin = read_state(|s| s.admin);
+
+    if admin != caller {
+        let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+            .ok_or(UserError::CallerNotFound(caller))?;
+    }
     Ok(read_state(|s| s.erc20_balances.balance_of(&caller).try_into().unwrap()))
 }
 
@@ -570,10 +590,16 @@ async fn erc20_balance() -> Nat {
 #[update]
 async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<(), TransferErc20Error> {
     let caller = validate_caller_not_anonymous();
-    let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
-        .ok_or(TransferErc20Error::CallerNotFound(caller))?;
-    let _receiver_as_user = get_user_by(GetUserBy::Principal(receiver))
-        .ok_or(TransferErc20Error::CallerNotFound(receiver))?;
+    let admin = read_state(|s| s.admin);
+
+    if admin != caller {
+        let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+            .ok_or(TransferErc20Error::CallerNotFound(caller))?;
+    }
+    if admin != receiver {
+        let _receiver_as_user = get_user_by(GetUserBy::Principal(receiver))
+            .ok_or(TransferErc20Error::CallerNotFound(receiver))?;
+    }
 
     let checked_amount = CheckedAmountOf::<Erc20Tag>::try_from(amount.clone())
         .expect("ERROR: failed to convert Nat to u256");

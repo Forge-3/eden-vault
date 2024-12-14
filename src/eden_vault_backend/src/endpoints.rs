@@ -1,6 +1,7 @@
 use crate::eth_rpc_client::responses::TransactionReceipt;
 use crate::state::{transactions, transactions::EthWithdrawalRequest};
 use crate::tx::{SignedEip1559TransactionRequest, TransactionPrice};
+use crate::user::{get_user_by, GetUserBy, OptionUser};
 use candid::{CandidType, Deserialize, Nat, Principal};
 use icrc_ledger_types::icrc1::account::Account;
 use minicbor::{Decode, Encode};
@@ -235,6 +236,7 @@ pub struct WithdrawalDetail {
     pub withdrawal_amount: Nat,
     pub max_transaction_fee: Option<Nat>,
     pub status: WithdrawalStatus,
+    pub from_user_id: Option<String>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, CandidType, Deserialize)]
@@ -341,6 +343,7 @@ pub mod events {
             from_address: String,
             value: Nat,
             principal: Principal,
+            to_user_id: Option<String>,
             erc20_contract_address: String,
         },
         InvalidDeposit {
@@ -381,12 +384,14 @@ pub mod events {
             from: Principal,
             from_subaccount: Option<[u8; 32]>,
             created_at: u64,
-            withdrawal_id: Nat
+            withdrawal_id: Nat,
+            from_user_id: Option<String>
         },
         MintedCkErc20 {
             event_source: EventSource,
             principal: Principal,
             amount: Nat,
+            to_user_id: Option<String>
         },
         QuarantinedDeposit {
             event_source: EventSource,
@@ -396,7 +401,9 @@ pub mod events {
         },
         Erc20TransferCompleted {
             from: Principal,
+            from_user_id: Option<String>,
             to: Principal,
+            to_user_id: Option<String>,
             amount: Nat,
         },
     }

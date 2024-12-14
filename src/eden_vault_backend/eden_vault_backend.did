@@ -36,6 +36,7 @@ type EventPayload = variant {
     transaction_hash : text;
     value : nat;
     log_index : nat;
+    to_user_id : opt text;
     block_number : nat;
     erc20_contract_address : text;
     from_address : text;
@@ -46,7 +47,9 @@ type EventPayload = variant {
   QuarantinedDeposit : record { event_source : EventSource };
   Erc20TransferCompleted : record {
     to : principal;
+    to_user_id : opt text;
     from : principal;
+    from_user_id : opt text;
     amount : nat;
   };
   SyncedToBlock : record { block_number : nat };
@@ -57,6 +60,7 @@ type EventPayload = variant {
   QuarantinedReimbursement : record { index : ReimbursementIndex };
   MintedCkErc20 : record {
     "principal" : principal;
+    to_user_id : opt text;
     event_source : EventSource;
     amount : nat;
   };
@@ -73,6 +77,7 @@ type EventPayload = variant {
     from : principal;
     created_at : nat64;
     from_subaccount : opt blob;
+    from_user_id : opt text;
     max_transaction_fee : nat;
   };
   FinalizedTransaction : record {
@@ -130,8 +135,11 @@ type ReimbursementIndex = variant {
   CkErc20 : record { withdrawal_id : nat };
   CkEth : record { ledger_burn_index : nat };
 };
-type Result = variant { Ok : text; Err : text };
-type Result_1 = variant { Ok : RetrieveErc20Request; Err : WithdrawErc20Error };
+type Result = variant { Ok; Err : text };
+type Result_1 = variant { Ok : nat; Err : UserError };
+type Result_2 = variant { Ok; Err : TransferErc20Error };
+type Result_3 = variant { Ok : text; Err : text };
+type Result_4 = variant { Ok : RetrieveErc20Request; Err : WithdrawErc20Error };
 type RetrieveErc20Request = record {
   id : nat;
   destination : text;
@@ -156,6 +164,11 @@ type TransactionReceipt = record {
   gas_used : nat;
 };
 type TransactionStatus = variant { Success; Failure };
+type TransferErc20Error = variant {
+  CallerNotFound : principal;
+  RecipientNotFound : text;
+  InsufficientFunds : record { available : nat; required : nat };
+};
 type TxFinalizedStatus = variant {
   Success : record {
     transaction_hash : text;
@@ -190,11 +203,16 @@ type UpgradeArg = record {
   ethereum_block_height : opt CandidBlockTag;
   ckerc20_token_symbol : opt text;
 };
+type UserError = variant {
+  CallerNotFound : principal;
+  RecipientNotFound : text;
+};
 type WithdrawErc20Arg = record { recipient : text; amount : nat };
 type WithdrawErc20Error = variant {
   TokenNotSupported : record { supported_tokens : vec CkErc20Token };
   TemporarilyUnavailable : text;
   CkErc20LedgerError : record { error : LedgerError; cketh_block_index : nat };
+  CallerNotFound : principal;
   CkEthLedgerError : record { error : LedgerError };
   RecipientAddressBlocked : record { address : text };
   InsufficientFunds : record { available : nat; required : nat };
@@ -206,6 +224,7 @@ type WithdrawalDetail = record {
   withdrawal_id : nat;
   from : principal;
   from_subaccount : opt blob;
+  from_user_id : opt text;
   max_transaction_fee : opt nat;
   recipient_address : text;
 };
@@ -221,18 +240,19 @@ type WithdrawalStatus = variant {
   Pending;
 };
 service : (MinterArg) -> {
+  create_new_user : (blob, principal, text) -> (Result);
   erc20_balance : () -> (nat) query;
   erc20_balance_of : (principal) -> (nat) query;
-  erc20_my_balance : () -> (nat) query;
-  erc20_transfer : (principal, nat) -> (Result);
+  erc20_my_balance : () -> (Result_1) query;
+  erc20_transfer : (principal, nat) -> (Result_2);
   get_canister_status : () -> (CanisterStatusResponse);
   get_events : (GetEventsArg) -> (GetEventsResult) query;
   is_address_blocked : (text) -> (bool) query;
   minter_address : () -> (text);
   retrieve_eth_status : (nat64) -> (RetrieveEthStatus);
-  set_admin : (principal) -> (Result);
+  set_admin : (principal) -> (Result_3);
   smart_contract_address : () -> (text) query;
-  withdraw_erc20 : (WithdrawErc20Arg) -> (Result_1);
+  withdraw_erc20 : (WithdrawErc20Arg) -> (Result_4);
   withdrawal_status : (WithdrawalSearchParameter) -> (
       vec WithdrawalDetail,
     ) query;
