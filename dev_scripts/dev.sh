@@ -1,5 +1,6 @@
 #!/bin/bash
-
+rm -f .env
+rm -rf .dfx
 source ./dev_scripts/config.sh
 
 process_block_number() {
@@ -29,8 +30,8 @@ sleep 6s
 BLOCK_NUMBER=$(cast block latest --json | jq -r '.number')
 LAST_BLOCK=$(process_block_number $BLOCK_NUMBER)
 
-dfx canister create eden_vault_backend
-dfx canister create evm_rpc
+dfx canister create eden_vault_backend --network local
+dfx canister create evm_rpc  --network local
 
 forge build
 FORGE_TOKEN_DEPLOY_OUTPUT=$(forge create ./src/ForgeToken.sol:ForgeToken --rpc-url $EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY)
@@ -53,14 +54,16 @@ cast send $EDEN_TOKEN_ADDRESS \
     --gas-limit 65000 \
     "executeLosslessTurnOff()"
 
-dfx deploy evm_rpc --argument '(record {})'
+dfx deploy evm_rpc --argument '(record {})' --network local
 set -o allexport; source .env; set +o allexport
 
 dfx canister call evm_rpc request \
   '(variant {Custom=record {url="http://'"$EVM_RPC_URL"'"}},"{\"jsonrpc\":\"2.0\",\"method\":\"eth_gasPrice\",\"params\":[],\"id\":1}",1000)' \
   --wallet "$(dfx identity get-wallet)" \
-  --with-cycles 1000000000
+  --with-cycles 1000000000 \
+  --network local
   
+# Admin: identity eden -> uxmir-inifa-hn3w7-6sann-oi4cd-6cd74-3aku6-kobyk-d6dr6-nydyw-yqe
 dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     ethereum_network = variant { Local };
     ecdsa_key_name = "dfx_test_key";
@@ -68,12 +71,12 @@ dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     minimum_withdrawal_amount = 5_000_000_000_000;
     next_transaction_nonce = 0;
     last_scraped_block_number = '$LAST_BLOCK';
-    admin = principal "nxu2q-em5br-fw5za-34owr-pxlfb-p6g73-6fe6i-sgggr-vtt27-hnxqk-gqe";
+    admin = principal "uxmir-inifa-hn3w7-6sann-oi4cd-6cd74-3aku6-kobyk-d6dr6-nydyw-yqe";
     ckerc20_token_address = "'"$EDEN_TOKEN_ADDRESS"'";
     ckerc20_token_symbol = "ckEDEN";
-} })'
+} })'  --network local
 
-MINTER_ADDRESS=$(dfx canister call eden_vault_backend minter_address --output json | sed 's/^.//;s/.$//')
+MINTER_ADDRESS=$(dfx canister call eden_vault_backend minter_address --network local --output json | sed 's/^.//;s/.$//')
 export MINTER_ADDRESS
 
 sleep 1s
@@ -92,7 +95,7 @@ dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
     last_erc20_scraped_block_number = null;
     evm_rpc_id = opt principal "'"$CANISTER_ID_EVM_RPC"'";
     withdraw_fee_value = opt 4_000_000;
-} })' --upgrade-unchanged
+} })' --upgrade-unchanged  --network local
 
 cast send $MINTER_ADDRESS --value 100ether --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY
 

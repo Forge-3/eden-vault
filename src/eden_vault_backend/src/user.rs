@@ -1,9 +1,8 @@
-use candid::{CandidType, Principal};
-use ic_ethereum_types::Address;
-use ic_stable_structures::{storable::Bound, Storable, Vec as StableVec};
+use candid::{CandidType, Nat, Principal};
+use ic_stable_structures::{storable::Bound, Storable};
 use minicbor::{Decode, Encode};
 use serde::Deserialize;
-use std::{borrow::Cow, str::FromStr};
+use std::borrow::Cow;
 
 use crate::storage::with_users_iter;
 
@@ -15,19 +14,13 @@ pub struct User {
      id: [u8; 12],
      #[cbor(n(1), with = "crate::cbor::principal")]
      principal: Principal,
-     #[n(2)]
-     eth_address: Address
 }
 
 impl User {
-    pub fn new(id: [u8; 12], principal: Principal, address_string: String) -> Self {
-        let eth_address = Address::from_str(&address_string)
-        .unwrap_or_else(|e| ic_cdk::trap(&format!("invalid recipient address: {:?}", e)));
-
+    pub fn new(id: [u8; 12], principal: Principal) -> Self {
         Self {
             id,
             principal,
-            eth_address
         }
     }
 
@@ -37,10 +30,6 @@ impl User {
 
     pub fn get_principal(&self) -> Principal {
         self.principal
-    }
-    
-    pub fn get_eth_address(&self) -> Address {
-        self.eth_address
     }
 }
 
@@ -58,8 +47,8 @@ impl Storable for User {
     }
 
     const BOUND: Bound = Bound::Bounded {
-        max_size: 12,
-        is_fixed_size: true,
+        max_size: 45,
+        is_fixed_size: false,
     };
 }
 
@@ -67,16 +56,14 @@ pub fn does_user_already_exist(user: &User) -> bool {
     with_users_iter(|mut user_iter| 
         user_iter.any(|u| 
             u.get_id() == user.get_id() || 
-                u.get_principal() == user.get_principal() || 
-                u.get_eth_address() == user.get_eth_address()
+                u.get_principal() == user.get_principal()
         )
     )
 }
 
 pub enum GetUserBy {
     Principal(Principal),
-    Id([u8; 12]),
-    EthAddress(Address)
+    Id([u8; 12])
 }
 
 pub fn get_user_by(get_by: GetUserBy) -> Option<User> {
@@ -86,9 +73,6 @@ pub fn get_user_by(get_by: GetUserBy) -> Option<User> {
         ),
         GetUserBy::Id(id) => with_users_iter(|mut user_iter| 
             user_iter.find(|user| user.get_id() == id)
-        ),
-        GetUserBy::EthAddress(address) => with_users_iter(|mut user_iter| 
-            user_iter.find(|user| user.get_eth_address() == address)
         ),
     }
 }
@@ -110,5 +94,24 @@ impl OptionUser<User> for Option<User> {
 #[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]
 pub enum UserError {
     CallerNotFound(Principal),
-    RecipientNotFound(String)
+    RecipientNotFound(String),
+    UserAlreadyExists,
+    NotAdmin,
+    UserIsAdmin
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct CreateNewUser {
+    pub principal: Principal,
+    pub user_id:[u8; 12]
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct UserStats {
+    pub deposit_count: Nat,
+    pub started_withdrawals: Nat,
+    pub transfers_from: Nat,
+    pub transfers_in: Nat,
+    pub ended_withdrawals: Nat,
+    pub user_balance: Nat,
 }

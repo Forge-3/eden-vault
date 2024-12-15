@@ -8,17 +8,18 @@
       "build": "./build.sh eden_vault_backend",
       "optimize": "cycles"
     },
-  "evm_rpc": {
-    "type": "custom",
-    "candid": "https://github.com/internet-computer-protocol/evm-rpc-canister/releases/latest/download/evm_rpc.did",
-    "wasm": "https://github.com/internet-computer-protocol/evm-rpc-canister/releases/latest/download/evm_rpc.wasm.gz",
-    "remote": {
-      "id": {
-        "ic": "7hfb6-caaaa-aaaar-qadga-cai"
-      }
-    },
-    "init_arg": "(record {})"
-  }},
+    "evm_rpc": {
+      "type": "custom",
+      "candid": "https://github.com/internet-computer-protocol/evm-rpc-canister/releases/latest/download/evm_rpc.did",
+      "wasm": "https://github.com/internet-computer-protocol/evm-rpc-canister/releases/latest/download/evm_rpc.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "7hfb6-caaaa-aaaar-qadga-cai"
+        }
+      },
+      "init_arg": "(record {})"
+    }
+  },
   "defaults": {
     "build": {
       "args": "",

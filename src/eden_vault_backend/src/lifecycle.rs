@@ -44,7 +44,7 @@ impl EthereumNetwork {
             EthereumNetwork::Sepolia => 11155111,
             EthereumNetwork::BSC => 56,
             EthereumNetwork::BSCTestnet => 97,
-            EthereumNetwork::Local => 31337,
+            EthereumNetwork::Local => 56,
         }
     }
 }

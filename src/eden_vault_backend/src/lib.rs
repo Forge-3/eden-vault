@@ -33,9 +33,11 @@ use std::time::Duration;
 
 pub const MAIN_DERIVATION_PATH: Vec<ByteBuf> = vec![];
 // DEV: mode: 30
-// Mainnet mode: 10 * 60
-pub const SCRAPING_ETH_LOGS_INTERVAL: Duration = Duration::from_secs(5 * 60);
+// Mainnet mode: 5 * 60
+pub const SCRAPING_ETH_LOGS_INTERVAL: Duration = Duration::from_secs(30);
 // DEV: mode: 30
-// Mainnet mode: 15 * 60
-pub const PROCESS_ETH_RETRIEVE_TRANSACTIONS_INTERVAL: Duration = Duration::from_secs(4 * 60);
-pub const PROCESS_ETH_RETRIEVE_TRANSACTIONS_RETRY_INTERVAL: Duration = Duration::from_secs(4 * 60);
+// Mainnet mode: 4 * 60
+pub const PROCESS_ETH_RETRIEVE_TRANSACTIONS_INTERVAL: Duration = Duration::from_secs(30);
+// DEV: mode: 30
+// Mainnet mode: 4 * 60
+pub const PROCESS_ETH_RETRIEVE_TRANSACTIONS_RETRY_INTERVAL: Duration = Duration::from_secs(30);

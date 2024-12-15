@@ -68,7 +68,7 @@ impl CustomEvmRpc {
         match self {
             CustomEvmRpc::BSC => 56,
             CustomEvmRpc::BSCTestnet => 97,
-            CustomEvmRpc::Local => 31337,
+            CustomEvmRpc::Local => 56,
         }
     }
     //EvmRpcServices

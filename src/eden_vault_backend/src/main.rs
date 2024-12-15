@@ -1,8 +1,8 @@
 use crate::checked_amount::CheckedAmountOf;
 use candid::{Nat, Principal};
 use eden_vault_backend::address::{validate_address_as_destination, AddressValidationError};
-use eden_vault_backend::user::{does_user_already_exist, get_user_by, GetUserBy, User, UserError};
-use eden_vault_backend::{checked_amount, user};
+use eden_vault_backend::user::{does_user_already_exist, get_user_by, CreateNewUser, GetUserBy, User, UserError, UserStats};
+use eden_vault_backend::checked_amount;
 use eden_vault_backend::deposit::scrape_logs;
 use eden_vault_backend::endpoints::ckerc20::{
     RetrieveErc20Request, TransferErc20Error, WithdrawErc20Arg, WithdrawErc20Error
@@ -21,7 +21,7 @@ use eden_vault_backend::state::transactions::{Erc20WithdrawalRequest, Reimbursem
 use eden_vault_backend::state::{
     lazy_call_ecdsa_public_key, mutate_state, read_state, transactions, State, STATE,
 };
-use eden_vault_backend::storage::push_user;
+use eden_vault_backend::storage::{push_user, with_event_iter};
 use eden_vault_backend::tx::lazy_refresh_gas_fee_estimate;
 use eden_vault_backend::withdraw::{
     process_retrieve_eth_requests, CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
@@ -583,6 +583,63 @@ async fn erc20_balance_of(principal: Principal) -> Nat {
 }
 
 #[query]
+async fn get_user_erc20_stats(principal: Principal) -> UserStats{
+    let mut deposit_count: Nat = 0u8.into();
+    let mut started_withdrawals: Nat = 0u8.into();
+    let mut transfers_from: Nat = 0u8.into();
+    let mut transfers_in: Nat = 0u8.into();
+    let mut ended_withdrawals: Nat = 0u8.into();
+
+    with_event_iter(|events| {
+        let events_iter = events.into_iter();
+        for event in events_iter {
+            match &event.payload {
+                EventType::AcceptedErc20Deposit(deposit) => {
+                    if deposit.principal == principal {
+                        deposit_count+=1u8
+                    }
+                },
+                EventType::AcceptedErc20WithdrawalRequest(withdrawal) => {
+                    if withdrawal.from == principal {
+                        started_withdrawals+=1u8
+                    }
+                }
+                EventType::Erc20TransferCompleted{from, to, amount: _} => {
+                    if from == &principal{
+                        transfers_from+=1u8
+                    } else if to == &principal{
+                        transfers_in+=1u8
+                    }
+                }
+                EventType::FinalizedTransaction{ withdrawal_id, transaction_receipt: _ } => {
+                    let tx = read_state(|s| 
+                        s.eth_transactions
+                            .get_processed_withdrawal_request(withdrawal_id)
+                            .expect("Tx is not Finalized?")
+                            .clone()
+                    );
+                    if tx.from() == principal {
+                        ended_withdrawals+=1u8
+                    }
+                }
+                _=> (),
+            } 
+        }
+    });
+    let user_balance: Nat = read_state(|s| s.erc20_balances.balance_of(&principal).try_into().unwrap());
+
+    return UserStats {
+         deposit_count,
+         started_withdrawals,
+         transfers_from,
+         transfers_in,
+         ended_withdrawals,
+         user_balance,
+    }
+
+}
+
+#[query]
 async fn erc20_balance() -> Nat {
     read_state(|s| s.erc20_balances.get_erc20_balance().try_into().unwrap())
 }
@@ -635,13 +692,23 @@ async fn smart_contract_address() -> String {
 }
 
 #[update]
-fn create_new_user(user_id: [u8; 12], principal: Principal, address_string: String) -> Result<(), String>{
-        let user = User::new(user_id, principal, address_string);
-        if does_user_already_exist(&user) {
-            return Err("The user with such data already exists.".to_string())
-        }
-        push_user(&user);
-        Ok(())
+fn create_new_user(    principal: Principal,
+    user_id:[u8; 12]) -> Result<(), UserError>{
+    let caller = validate_caller_not_anonymous();
+    let admin = read_state(|s| s.admin);
+
+    if caller != admin {
+        return Err(UserError::NotAdmin)
+    }
+    if principal == admin {
+        return Err(UserError::UserIsAdmin)
+    }
+    let user = User::new(user_id, principal);
+    if does_user_already_exist(&user) {
+        return Err(UserError::UserAlreadyExists)
+    }
+    push_user(&user);
+    Ok(())
 }
 
 ic_cdk::export_candid!();

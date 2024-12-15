@@ -135,7 +135,7 @@ type ReimbursementIndex = variant {
   CkErc20 : record { withdrawal_id : nat };
   CkEth : record { ledger_burn_index : nat };
 };
-type Result = variant { Ok; Err : text };
+type Result = variant { Ok; Err : UserError };
 type Result_1 = variant { Ok : nat; Err : UserError };
 type Result_2 = variant { Ok; Err : TransferErc20Error };
 type Result_3 = variant { Ok : text; Err : text };
@@ -204,8 +204,19 @@ type UpgradeArg = record {
   ckerc20_token_symbol : opt text;
 };
 type UserError = variant {
+  UserAlreadyExists;
+  UserIsAdmin;
+  NotAdmin;
   CallerNotFound : principal;
   RecipientNotFound : text;
+};
+type UserStats = record {
+  transfers_from : nat;
+  user_balance : nat;
+  transfers_in : nat;
+  deposit_count : nat;
+  started_withdrawals : nat;
+  ended_withdrawals : nat;
 };
 type WithdrawErc20Arg = record { recipient : text; amount : nat };
 type WithdrawErc20Error = variant {
@@ -240,13 +251,14 @@ type WithdrawalStatus = variant {
   Pending;
 };
 service : (MinterArg) -> {
-  create_new_user : (blob, principal, text) -> (Result);
+  create_new_user : (principal, blob) -> (Result);
   erc20_balance : () -> (nat) query;
   erc20_balance_of : (principal) -> (nat) query;
   erc20_my_balance : () -> (Result_1) query;
   erc20_transfer : (principal, nat) -> (Result_2);
   get_canister_status : () -> (CanisterStatusResponse);
   get_events : (GetEventsArg) -> (GetEventsResult) query;
+  get_user_erc20_stats : (principal) -> (UserStats) query;
   is_address_blocked : (text) -> (bool) query;
   minter_address : () -> (text);
   retrieve_eth_status : (nat64) -> (RetrieveEthStatus);
