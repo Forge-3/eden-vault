@@ -583,7 +583,12 @@ async fn erc20_balance_of(principal: Principal) -> Nat {
 }
 
 #[query]
-async fn get_user_erc20_stats(principal: Principal) -> UserStats{
+fn get_all_erc20_principals() -> Vec<Principal>{
+    read_state(|s| s.erc20_balances.get_all_principals().clone())
+}
+
+#[query]
+async fn get_principal_erc20_stats(principal: Principal) -> UserStats{
     let mut deposit_count: Nat = 0u8.into();
     let mut started_withdrawals: Nat = 0u8.into();
     let mut transfers_from: Nat = 0u8.into();

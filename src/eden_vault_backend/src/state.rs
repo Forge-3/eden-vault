@@ -702,6 +702,10 @@ impl Erc20Balances {
                 )
             });
     }
+
+    pub fn get_all_principals(&self) -> Vec<Principal>{
+       self.principal_balance_by_erc20.keys().cloned().collect()
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, EnumIter)]

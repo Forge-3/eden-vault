@@ -256,9 +256,10 @@ service : (MinterArg) -> {
   erc20_balance_of : (principal) -> (nat) query;
   erc20_my_balance : () -> (Result_1) query;
   erc20_transfer : (principal, nat) -> (Result_2);
+  get_all_erc20_principals : () -> (vec principal) query;
   get_canister_status : () -> (CanisterStatusResponse);
   get_events : (GetEventsArg) -> (GetEventsResult) query;
-  get_user_erc20_stats : (principal) -> (UserStats) query;
+  get_principal_erc20_stats : (principal) -> (UserStats) query;
   is_address_blocked : (text) -> (bool) query;
   minter_address : () -> (text);
   retrieve_eth_status : (nat64) -> (RetrieveEthStatus);
