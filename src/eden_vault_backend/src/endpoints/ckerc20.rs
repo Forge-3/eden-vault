@@ -85,3 +85,9 @@ pub enum LedgerError {
     },
     TemporarilyUnavailable(String),
 }
+
+#[derive(Clone, PartialEq, Debug, CandidType, Deserialize)]
+pub enum QueueError {
+    CallerNotFound(Principal),
+    IndexToSmall,
+}

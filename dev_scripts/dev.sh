@@ -25,7 +25,7 @@ gnome-terminal \
     --tab --title="Anvil - EVM blockchain" -- bash -c "anvil --block-time 3 --fork-url https://bsc-dataseed.bnbchain.org; exec bash" 
 gnome-terminal \
     --tab --title="DFX - IC blockchain" -- bash -c "dfx start --clean; exec bash"
-sleep 6s
+sleep 8s
 
 BLOCK_NUMBER=$(cast block latest --json | jq -r '.number')
 LAST_BLOCK=$(process_block_number $BLOCK_NUMBER)
@@ -71,7 +71,7 @@ dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
     minimum_withdrawal_amount = 5_000_000_000_000;
     next_transaction_nonce = 0;
     last_scraped_block_number = '$LAST_BLOCK';
-    admin = principal "uxmir-inifa-hn3w7-6sann-oi4cd-6cd74-3aku6-kobyk-d6dr6-nydyw-yqe";
+    admin = principal "xrloo-ocklc-djn2y-xduxq-ple6k-ycdzg-f4v5k-6pmve-v543p-ocloy-pae";
     ckerc20_token_address = "'"$EDEN_TOKEN_ADDRESS"'";
     ckerc20_token_symbol = "ckEDEN";
 } })'  --network local
@@ -94,7 +94,7 @@ dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
     erc20_helper_contract_address = opt "'"$CK_ERC20_DEPOSIT_ADDRESS"'";
     last_erc20_scraped_block_number = null;
     evm_rpc_id = opt principal "'"$CANISTER_ID_EVM_RPC"'";
-    withdraw_fee_value = opt 4_000_000;
+    withdraw_fee_value = opt 0;
 } })' --upgrade-unchanged  --network local
 
 cast send $MINTER_ADDRESS --value 100ether --rpc-url http://$EVM_RPC_URL --private-key $ALICE_PRIVATE_KEY

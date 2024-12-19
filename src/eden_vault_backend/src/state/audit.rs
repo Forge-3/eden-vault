@@ -109,7 +109,6 @@ pub fn process_event(state: &mut State, payload: EventType) {
 ///   * The first event in the log is not an Init event.
 ///   * One of the events in the log invalidates the minter's state invariants.
 pub fn replay_events() -> State {
-    let x = total_event_count();
     if total_event_count() == 0 {
         with_old_event_iter(|iter| replay_old_events_internal(iter));
     }

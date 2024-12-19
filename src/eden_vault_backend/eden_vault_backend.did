@@ -89,6 +89,7 @@ type EventPayload = variant {
 type EventSource = record { transaction_hash : text; log_index : nat };
 type GetEventsArg = record { start : nat64; length : nat64 };
 type GetEventsResult = record { total_event_count : nat64; events : vec Event };
+type GetUserBy = variant { Id : blob; Salt : nat64; Principal : principal };
 type InitArg = record {
   ethereum_network : EthereumNetwork;
   admin : principal;
@@ -131,15 +132,18 @@ type QueryStats = record {
   num_calls_total : nat;
   request_payload_bytes_total : nat;
 };
+type QueueError = variant { IndexToSmall; CallerNotFound : principal };
 type ReimbursementIndex = variant {
   CkErc20 : record { withdrawal_id : nat };
   CkEth : record { ledger_burn_index : nat };
 };
-type Result = variant { Ok; Err : UserError };
+type Result = variant { Ok : User; Err : UserError };
 type Result_1 = variant { Ok : nat; Err : UserError };
 type Result_2 = variant { Ok; Err : TransferErc20Error };
-type Result_3 = variant { Ok : text; Err : text };
-type Result_4 = variant { Ok : RetrieveErc20Request; Err : WithdrawErc20Error };
+type Result_3 = variant { Ok : nat64; Err : UserError };
+type Result_4 = variant { Ok : text; Err : text };
+type Result_5 = variant { Ok : nat64; Err : QueueError };
+type Result_6 = variant { Ok : RetrieveErc20Request; Err : WithdrawErc20Error };
 type RetrieveErc20Request = record {
   id : nat;
   destination : text;
@@ -203,6 +207,7 @@ type UpgradeArg = record {
   ethereum_block_height : opt CandidBlockTag;
   ckerc20_token_symbol : opt text;
 };
+type User = record { id : blob; "principal" : principal; salt : nat64 };
 type UserError = variant {
   UserAlreadyExists;
   UserIsAdmin;
@@ -251,7 +256,7 @@ type WithdrawalStatus = variant {
   Pending;
 };
 service : (MinterArg) -> {
-  create_new_user : (principal, blob) -> (Result);
+  create_new_user : (principal, opt nat64, blob) -> (Result);
   erc20_balance : () -> (nat) query;
   erc20_balance_of : (principal) -> (nat) query;
   erc20_my_balance : () -> (Result_1) query;
@@ -260,12 +265,16 @@ service : (MinterArg) -> {
   get_canister_status : () -> (CanisterStatusResponse);
   get_events : (GetEventsArg) -> (GetEventsResult) query;
   get_principal_erc20_stats : (principal) -> (UserStats) query;
+  get_queue_index : () -> (Result_3) query;
+  get_salt : () -> (nat64) query;
+  get_user_by : (GetUserBy) -> (opt User) query;
   is_address_blocked : (text) -> (bool) query;
   minter_address : () -> (text);
   retrieve_eth_status : (nat64) -> (RetrieveEthStatus);
-  set_admin : (principal) -> (Result_3);
+  set_admin : (principal) -> (Result_4);
+  set_queue_index : (nat64) -> (Result_5);
   smart_contract_address : () -> (text) query;
-  withdraw_erc20 : (WithdrawErc20Arg) -> (Result_4);
+  withdraw_erc20 : (WithdrawErc20Arg) -> (Result_6);
   withdrawal_status : (WithdrawalSearchParameter) -> (
       vec WithdrawalDetail,
     ) query;

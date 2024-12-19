@@ -4,6 +4,7 @@ use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
     storable::{Bound, Storable},
     DefaultMemoryImpl,
+    Cell,
     Vec as StableVec
 };
 use std::borrow::Cow;
@@ -15,10 +16,13 @@ const OLD_LOG_DATA_MEMORY_ID: MemoryId = MemoryId::new(1);
 const LOG_INDEX_MEMORY_ID: MemoryId = MemoryId::new(4);
 const LOG_DATA_MEMORY_ID: MemoryId = MemoryId::new(5);
 
-const VEC_DATA_MEMORY_ID: MemoryId = MemoryId::new(6);
+const VEC_DATA_MEMORY_ID: MemoryId = MemoryId::new(7);
+const USER_CELL_DATA_MEMORY_ID: MemoryId = MemoryId::new(8);
 
 pub type VMem = VirtualMemory<DefaultMemoryImpl>;
 type EventLog = StableLog<Event, VMem, VMem>;
+type UsersNextSalt = Cell<u64, VMem>;
+type QueueIndex = Cell<u64, VMem>;
 type UsersVec = StableVec<User, VMem>;
 
 impl Storable for Event {
@@ -41,14 +45,34 @@ thread_local! {
         MemoryManager::init(DefaultMemoryImpl::default())
     );
 
+    static USERS_SALT: RefCell<UsersNextSalt> = MEMORY_MANAGER
+    .with(|m| 
+        RefCell::new(
+            Cell::init(
+                m.borrow().get(USER_CELL_DATA_MEMORY_ID),
+                198
+            ).expect("failed to initialize stable cell")
+        )
+    );
+
+    static QUEUE_INDEX: RefCell<QueueIndex> = MEMORY_MANAGER
+    .with(|m| 
+        RefCell::new(
+            Cell::init(
+                m.borrow().get(USER_CELL_DATA_MEMORY_ID),
+                370
+            ).expect("failed to initialize stable cell")
+        )
+    );
+
     static USERS: RefCell<UsersVec> = MEMORY_MANAGER
-        .with(|m| 
-            RefCell::new(
-                StableVec::new(
-                    m.borrow().get(VEC_DATA_MEMORY_ID)
-                ).expect("failed to initialize stable vec")
-            )
-        );
+    .with(|m| 
+        RefCell::new(
+            StableVec::init(
+                m.borrow().get(VEC_DATA_MEMORY_ID)
+            ).expect("failed to initialize stable vec")
+        )
+    );
 
     /// The log of the ckETH state modifications.
     static EVENTS: RefCell<EventLog> = MEMORY_MANAGER
@@ -72,6 +96,37 @@ thread_local! {
     );
 }
 
+//QUEUE_INDEX
+
+pub fn get_current_queue_index()-> u64 {
+    QUEUE_INDEX.with(|salt| salt.borrow().get().clone())
+}
+
+pub fn set_current_queue_index(index: u64) -> u64 {
+    QUEUE_INDEX.with(|salt| salt.borrow_mut().set(index).expect("failed to set index"));
+    QUEUE_INDEX.with(|salt| salt.borrow().get().clone())
+}
+
+pub fn get_next_user_salt() -> u64 {
+    USERS_SALT.with(|salt| {
+        salt.borrow().get().clone()
+    })
+}
+
+pub fn inc_user_salt() -> u64 {
+    USERS_SALT.with(|salt| {
+        let curr = salt.borrow().get().clone();
+        salt.borrow_mut().set(curr+1).expect("failed to write archive salt")
+    })
+}
+
+pub fn users_len() -> u64 {
+    USERS
+        .with(|users| {
+            users.borrow().len()
+        })
+}
+
 pub fn push_user(user: &User) {
     USERS
         .with(|users| {
@@ -79,7 +134,7 @@ pub fn push_user(user: &User) {
                 user
             )
         })
-        .expect("recording an event should succeed");
+        .expect("recording an user should succeed");
 }
 
 pub fn with_users_iter<F, R>(f: F) -> R

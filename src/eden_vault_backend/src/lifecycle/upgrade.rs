@@ -3,7 +3,7 @@ use crate::logs::INFO;
 use crate::state::audit::{process_event, replay_events, EventType};
 use crate::state::{mutate_state, read_state};
 use crate::state::STATE;
-use crate::storage::{total_event_count, total_old_event_count};
+use crate::storage::{total_event_count, total_old_event_count, users_len};
 use candid::{CandidType, Deserialize, Nat, Principal};
 use ic_canister_log::log;
 use minicbor::{Decode, Encode};
@@ -31,6 +31,13 @@ pub struct UpgradeArg {
 }
 
 pub fn post_upgrade(upgrade_args: Option<UpgradeArg>) {
+    let users_count = users_len();
+    
+    log!(
+        INFO,
+        "[upgrade]: current users count is {users_count}",
+    );
+    
     let start = ic_cdk::api::instruction_counter();
 
     STATE.with(|cell| {

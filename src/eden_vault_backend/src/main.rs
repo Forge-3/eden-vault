@@ -1,11 +1,11 @@
 use crate::checked_amount::CheckedAmountOf;
 use candid::{Nat, Principal};
 use eden_vault_backend::address::{validate_address_as_destination, AddressValidationError};
-use eden_vault_backend::user::{does_user_already_exist, get_user_by, CreateNewUser, GetUserBy, User, UserError, UserStats};
+use eden_vault_backend::user::{does_user_already_exist, get_user_by as get_stable_user_by, CreateNewUser, GetUserBy, User, UserError, UserStats};
 use eden_vault_backend::checked_amount;
 use eden_vault_backend::deposit::scrape_logs;
 use eden_vault_backend::endpoints::ckerc20::{
-    RetrieveErc20Request, TransferErc20Error, WithdrawErc20Arg, WithdrawErc20Error
+    QueueError, RetrieveErc20Request, TransferErc20Error, WithdrawErc20Arg, WithdrawErc20Error
 };
 use eden_vault_backend::endpoints::events::{GetEventsArg, GetEventsResult};
 use eden_vault_backend::endpoints::{
@@ -21,7 +21,7 @@ use eden_vault_backend::state::transactions::{Erc20WithdrawalRequest, Reimbursem
 use eden_vault_backend::state::{
     lazy_call_ecdsa_public_key, mutate_state, read_state, transactions, State, STATE,
 };
-use eden_vault_backend::storage::{push_user, with_event_iter};
+use eden_vault_backend::storage::{get_current_queue_index, get_next_user_salt, inc_user_salt, push_user, set_current_queue_index, with_event_iter};
 use eden_vault_backend::tx::lazy_refresh_gas_fee_estimate;
 use eden_vault_backend::withdraw::{
     process_retrieve_eth_requests, CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
@@ -150,7 +150,7 @@ fn withdrawal_status(parameter: WithdrawalSearchParameter) -> Vec<WithdrawalDeta
                     .clone()
                     .map(|subaccount| subaccount.0),
                 status,
-                from_user_id: get_user_by(
+                from_user_id: get_stable_user_by(
                     GetUserBy::Principal(request.from())
                 ).get_user_id()
             })
@@ -166,7 +166,7 @@ async fn withdraw_erc20(
     let admin = read_state(|s| s.admin);
 
     if admin != caller {
-        let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+        let _caller_as_user = get_stable_user_by(GetUserBy::Principal(caller))
             .ok_or(WithdrawErc20Error::CallerNotFound(caller))?;
     }
     let _guard = retrieve_withdraw_guard(caller).unwrap_or_else(|e| {
@@ -365,7 +365,7 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     log_index: log_index.into(),
                     from_address: from_address.to_string(),
                     value: value.into(),
-                    to_user_id: get_user_by(GetUserBy::Principal(principal)).get_user_id(),
+                    to_user_id: get_stable_user_by(GetUserBy::Principal(principal)).get_user_id(),
                     principal,
                     erc20_contract_address: erc20_contract_address.to_string(),
                 },
@@ -434,7 +434,7 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     from_subaccount: from_subaccount.map(Subaccount::to_bytes),
                     created_at,
                     withdrawal_id: id,
-                    from_user_id: get_user_by(GetUserBy::Principal(from)).get_user_id(),
+                    from_user_id: get_stable_user_by(GetUserBy::Principal(from)).get_user_id(),
                 },
                 EventType::MintedCkErc20 {
                     event_source,
@@ -444,7 +444,7 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                     event_source: map_event_source(event_source),
                     principal,
                     amount: amount.into(),
-                    to_user_id: get_user_by(GetUserBy::Principal(principal)).get_user_id(),
+                    to_user_id: get_stable_user_by(GetUserBy::Principal(principal)).get_user_id(),
                 },
                 EventType::QuarantinedDeposit { event_source } => EP::QuarantinedDeposit {
                     event_source: map_event_source(event_source),
@@ -455,12 +455,12 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                 EventType::Erc20TransferCompleted { from, to, amount } => EP::Erc20TransferCompleted {
                     from,
                     from_user_id: 
-                        get_user_by(
+                        get_stable_user_by(
                             GetUserBy::Principal(from)
                         ).get_user_id(),
                     to,
                     to_user_id:  
-                        get_user_by(
+                        get_stable_user_by(
                             GetUserBy::Principal(to)
                         ).get_user_id(),
                     amount: amount.into(),
@@ -571,7 +571,7 @@ async fn erc20_my_balance() -> Result<Nat, UserError> {
     let admin = read_state(|s| s.admin);
 
     if admin != caller {
-        let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+        let _caller_as_user = get_stable_user_by(GetUserBy::Principal(caller))
             .ok_or(UserError::CallerNotFound(caller))?;
     }
     Ok(read_state(|s| s.erc20_balances.balance_of(&caller).try_into().unwrap()))
@@ -655,11 +655,11 @@ async fn erc20_transfer(receiver: Principal, amount: Nat) -> Result<(), Transfer
     let admin = read_state(|s| s.admin);
 
     if admin != caller {
-        let _caller_as_user = get_user_by(GetUserBy::Principal(caller))
+        let _caller_as_user = get_stable_user_by(GetUserBy::Principal(caller))
             .ok_or(TransferErc20Error::CallerNotFound(caller))?;
     }
     if admin != receiver {
-        let _receiver_as_user = get_user_by(GetUserBy::Principal(receiver))
+        let _receiver_as_user = get_stable_user_by(GetUserBy::Principal(receiver))
             .ok_or(TransferErc20Error::CallerNotFound(receiver))?;
     }
 
@@ -696,9 +696,17 @@ async fn smart_contract_address() -> String {
     .unwrap_or("N/A".to_string())
 }
 
+#[query]
+fn get_salt() -> u64 {
+    get_next_user_salt()
+}
+
 #[update]
-fn create_new_user(    principal: Principal,
-    user_id:[u8; 12]) -> Result<(), UserError>{
+fn create_new_user(
+    principal: Principal,
+    salt: Option<u64>,
+    user_id:[u8; 12],
+) -> Result<User, UserError>{
     let caller = validate_caller_not_anonymous();
     let admin = read_state(|s| s.admin);
 
@@ -708,12 +716,51 @@ fn create_new_user(    principal: Principal,
     if principal == admin {
         return Err(UserError::UserIsAdmin)
     }
-    let user = User::new(user_id, principal);
+    let salt = match salt {
+        Some(salt_value) => salt_value,
+        None => get_next_user_salt(),
+    };
+    let user = User::new(user_id, salt, principal);
     if does_user_already_exist(&user) {
-        return Err(UserError::UserAlreadyExists)
+        panic!("User already exist")
     }
     push_user(&user);
-    Ok(())
+    inc_user_salt();
+    Ok(user)
+}
+
+#[query]
+fn get_user_by(get_by: GetUserBy) -> Option<User> {
+    get_stable_user_by(get_by)
+}
+
+#[query]
+fn get_queue_index() -> Result<u64, UserError>{
+    let caller = validate_caller_not_anonymous();
+    let admin = read_state(|s| s.admin);
+
+    if admin != caller {
+        let _caller_as_user = get_stable_user_by(GetUserBy::Principal(caller))
+            .ok_or(UserError::CallerNotFound(caller))?;
+    }
+    Ok(get_current_queue_index())
+}
+
+#[update]
+fn set_queue_index(index: u64) -> Result<u64, QueueError>{
+    let caller = validate_caller_not_anonymous();
+    let admin = read_state(|s| s.admin);
+
+    if admin != caller {
+        let _caller_as_user = get_stable_user_by(GetUserBy::Principal(caller))
+            .ok_or(QueueError::CallerNotFound(caller))?;
+    }
+
+    let queue_index = get_current_queue_index();
+    if index <= queue_index {
+        return Err(QueueError::IndexToSmall)
+    }
+    Ok(set_current_queue_index(index))
 }
 
 ic_cdk::export_candid!();
