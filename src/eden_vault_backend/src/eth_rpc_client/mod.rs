@@ -80,7 +80,7 @@ impl CustomEvmRpc {
             CustomEvmRpc::BSC => EvmRpcServices::Custom {
                 chain_id: client.chain.chain_id(),
                 services: [RpcApi {
-                    url: String::from("https://bsc.blockpi.network/v1/rpc/public"),
+                    url: String::from("https://bsc-rpc.publicnode.com"),
                     headers: None,
                 }, ]
                 .to_vec(),

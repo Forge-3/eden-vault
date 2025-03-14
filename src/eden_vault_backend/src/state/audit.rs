@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod tests;
 
+use std::collections::HashSet;
+
+use candid::Nat;
 use ic_canister_log::log;
 
 pub use super::event::{Event, EventType};
@@ -128,7 +131,32 @@ pub fn replay_old_events_internal<T: IntoIterator<Item = Event>>(events: T) {
     }
 }
 
+pub fn apply_state_transition_or_skip<T: IntoIterator<Item = Event>>(events: T) {
+    let events_iter = events.into_iter();
+    for event in events_iter {
+        match &event.payload {
+            EventType::CreatedTransaction { withdrawal_id: _, transaction: _} => (),
+            EventType::SignedTransaction { withdrawal_id: _, transaction: _ } => (),
+            EventType::AcceptedErc20WithdrawalRequest(_) => (),
+            _ => migrate_event(&event),
+        }
+    }
+}
+
+pub fn should_skip_transfer_events(event: &EventType,  withdrawal_ids: &[Nat]) -> Option<Nat> {
+        match event.clone() {
+            EventType::CreatedTransaction { withdrawal_id, transaction: _} => if withdrawal_ids.contains(&withdrawal_id) {Some(withdrawal_id)} else {None},
+            EventType::SignedTransaction { withdrawal_id, transaction: _ } => if withdrawal_ids.contains(&withdrawal_id) {Some(withdrawal_id)} else {None},
+            EventType::AcceptedErc20WithdrawalRequest(withdrawal_request) => if withdrawal_ids.contains(&withdrawal_request.id) {Some(withdrawal_request.id)} else {None},
+            EventType::ReplacedTransaction { withdrawal_id, transaction: _ }  => if withdrawal_ids.contains(&withdrawal_id) {Some(withdrawal_id)} else {None},
+            EventType::FinalizedTransaction { withdrawal_id, transaction_receipt: _ }  => if withdrawal_ids.contains(&withdrawal_id) {Some(withdrawal_id)} else {None},
+            _ => None,
+        }
+}
+
 fn replay_events_internal<T: IntoIterator<Item = Event>>(events: T) -> State {
+    let withdrawal_ids_to_skip: [Nat; 1] = [3u8.into()];
+
     let mut events_iter = events.into_iter();
     let mut state = match events_iter
         .next()
@@ -140,7 +168,17 @@ fn replay_events_internal<T: IntoIterator<Item = Event>>(events: T) -> State {
         } => State::try_from(init_arg).expect("state initialization should succeed"),
         other => panic!("the first event must be an Init event, got: {other:?}"),
     };
+    let mut skipped_withdrawal_ids: HashSet<Nat> = HashSet::default();
     for event in events_iter {
+        // Skip events and add them to map  g
+        if let Some(id_to_skip) = should_skip_transfer_events(&event.payload, &withdrawal_ids_to_skip) {
+            if skipped_withdrawal_ids.insert(id_to_skip) {
+                state.withdraw_count = state.withdraw_count.checked_increment().expect("withdraw_count to high?!");
+                let new_nonce = state.eth_transactions.next_transaction_nonce();
+                state.eth_transactions.update_next_transaction_nonce(new_nonce.checked_increment().expect("Transaction nonce overflow"));
+            }
+            continue;
+        }
         apply_state_transition(&mut state, &event.payload);
     }
     state

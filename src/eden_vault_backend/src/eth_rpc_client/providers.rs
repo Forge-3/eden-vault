@@ -18,7 +18,7 @@ pub(crate) const LOCAL_PROVIDERS: [RpcNodeProvider; 1] =
     [RpcNodeProvider::Local(LocalService::Local)];
 
 pub(crate) const BSC_PROVIDERS: [RpcNodeProvider; 1] = [
-    RpcNodeProvider::BSC(BSCService::BlockPi),
+    RpcNodeProvider::BSC(BSCService::PublicNode),
 ];
 
 pub(crate) const BSC_TESTNET_PROVIDERS: [RpcNodeProvider; 2] = [
@@ -115,6 +115,8 @@ impl BSCTestnetService {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum BSCService {
+    // https://bsc-dataseed1.defibit.org
+    Defibit,
     // https://bsc-mainnet.public.blastapi.io
     BlastApi,
     // https://bsc.blockpi.network/v1/rpc/public
@@ -130,6 +132,7 @@ pub(crate) enum BSCService {
 impl BSCService {
     fn bsc_mainnet_endpoint_url(&self) -> &str {
         match self {
+            BSCService::Defibit => "https://bsc-dataseed1.defibit.org",
             BSCService::BlastApi => "https://bsc-mainnet.public.blastapi.io",
             BSCService::BlockPi => "https://bsc.blockpi.network/v1/rpc/public",
             BSCService::Drpc => "https://bsc.drpc.org",
