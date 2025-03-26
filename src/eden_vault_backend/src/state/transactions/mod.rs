@@ -971,6 +971,21 @@ impl EthTransactions {
             .flat_map(|req| req.created_at().into_iter())
             .min()
     }
+
+    pub fn record_finalized_reimbursement(&mut self, index: ReimbursementIndex, reimbursed: Reimbursed) {
+        self
+            .reimbursement_requests
+            .remove(&index)
+            .unwrap_or_else(|| panic!("BUG: missing reimbursement request with index {index:?}"));
+
+            assert_eq!(
+                self.reimbursed.insert(
+                    index,
+                    Ok(reimbursed),
+                ),
+                None
+            );
+    }
 }
 
 /// Creates an EIP-1559 transaction for the given withdrawal request.

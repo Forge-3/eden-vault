@@ -4,16 +4,21 @@ use crate::eth_rpc_client::EthRpcClient;
 use crate::eth_rpc_client::MultiCallError;
 use crate::guard::TimerGuard;
 use crate::logs::{DEBUG, INFO};
+use crate::numeric::LedgerMintIndex;
 use crate::numeric::{GasAmount, TransactionCount};
 use crate::state::audit::{process_event, EventType};
-use crate::state::transactions::{create_transaction, CreateTransactionError, WithdrawalRequest};
+use crate::state::transactions::Reimbursed;
+use crate::state::transactions::ReimbursementRequest;
+use crate::state::transactions::{create_transaction, CreateTransactionError, WithdrawalRequest, ReimbursementIndex};
 use crate::state::{mutate_state, read_state, State, TaskType};
 use crate::tx::{lazy_refresh_gas_fee_estimate, GasFeeEstimate};
 use candid::Nat;
 use futures::future::join_all;
 use ic_canister_log::log;
+use scopeguard::ScopeGuard;
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter::zip;
+use num_traits::ToPrimitive;
 
 const WITHDRAWAL_REQUESTS_BATCH_SIZE: usize = 5;
 const TRANSACTIONS_TO_SIGN_BATCH_SIZE: usize = 5;
@@ -337,3 +342,59 @@ async fn finalized_transaction_count() -> Result<TransactionCount, MultiCallErro
         .eth_get_finalized_transaction_count(crate::state::minter_address().await)
         .await
 }
+
+pub fn process_reimbursement() {
+    let _guard = match TimerGuard::new(TaskType::Reimbursement) {
+        Ok(guard) => guard,
+        Err(e) => {
+            log!(DEBUG, "Failed retrieving reimbursement guard: {e:?}",);
+            return;
+        }
+    };
+
+    let reimbursements: Vec<(ReimbursementIndex, ReimbursementRequest)> = read_state(|s| {
+        s.eth_transactions
+            .reimbursement_requests_iter()
+            .map(|(index, request)| (index.clone(), request.clone()))
+            .collect()
+    });
+    if reimbursements.is_empty() {
+        return;
+    }
+
+    for (index, reimbursement_request) in reimbursements {
+        // Ensure that even if we were to panic in the callback, after having contacted the ledger to mint the tokens,
+        // this reimbursement request will not be processed again.
+        let prevent_double_minting_guard = scopeguard::guard(index.clone(), |index| {
+            mutate_state(|s| process_event(s, EventType::QuarantinedReimbursement { index }));
+        });
+        let withdrawal_id = match index.clone() {
+            ReimbursementIndex::CkErc20 { withdrawal_id, .. } => withdrawal_id,
+        };
+
+        let reimbursed = Reimbursed {
+            burn_in_block: reimbursement_request.ledger_burn_index,
+            reimbursed_in_block: LedgerMintIndex::new(
+                withdrawal_id
+                .0
+                .to_u64()
+                .expect("ERROR: withdrawal_id does not fit in a u64")
+            ),
+            reimbursed_amount: reimbursement_request.reimbursed_amount,
+            transaction_hash: reimbursement_request.transaction_hash,
+        };
+        let event = match index {
+            ReimbursementIndex::CkErc20 {
+                withdrawal_id
+            } => EventType::ReimbursedErc20Withdrawal {
+                to: reimbursement_request.to,
+                withdrawal_id,
+                reimbursed,
+            },
+        };
+        mutate_state(|s| process_event(s, event));
+        // minting succeeded, defuse guard
+        ScopeGuard::into_inner(prevent_double_minting_guard);
+    }
+}
+    

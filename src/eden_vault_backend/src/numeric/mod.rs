@@ -12,9 +12,21 @@ pub type Wei = CheckedAmountOf<WeiTag>;
 pub enum Erc20Tag {}
 pub type Erc20Value = CheckedAmountOf<Erc20Tag>;
 
+impl From<CkTokenAmount> for Erc20Value {
+    fn from(item: CkTokenAmount) -> Self {
+        item.change_units()
+    }
+}
+
 /// Amount of CK token using their smallest denomination.
 pub enum CkTokenAmountTag {}
 pub type CkTokenAmount = CheckedAmountOf<CkTokenAmountTag>;
+
+impl From<Erc20Value> for CkTokenAmount {
+    fn from(item: Erc20Value) -> Self {
+        item.change_units()
+    }
+}
 
 pub enum WeiPerGasUnit {}
 pub type WeiPerGas = CheckedAmountOf<WeiPerGasUnit>;

@@ -19,7 +19,7 @@ use std::cell::RefCell;
 use std::collections::{btree_map, BTreeMap, BTreeSet, HashSet};
 use std::fmt::{Display, Formatter};
 use strum_macros::EnumIter;
-use transactions::EthTransactions;
+use transactions::{EthTransactions, Reimbursed, ReimbursementIndex};
 
 pub mod audit;
 pub mod event;
@@ -512,6 +512,15 @@ impl State {
             // https://developers.cloudflare.com/web3/ethereum-gateway/
             799_u16
         }
+    }
+
+    pub fn record_finalized_reimbursement(&mut self, to: Principal, index: ReimbursementIndex, reimbursed: Reimbursed) {
+        self.erc20_balances
+            .principal_erc20_add(to, reimbursed.reimbursed_amount.into());
+        self.eth_transactions.record_finalized_reimbursement(
+            index,
+            reimbursed
+        )
     }
 }
 

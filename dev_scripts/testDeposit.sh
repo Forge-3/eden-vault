@@ -13,6 +13,6 @@ cast send $CK_ERC20_DEPOSIT_ADDRESS \
     --rpc-url $EVM_RPC_URL \
     --private-key $ALICE_PRIVATE_KEY \
     --gas-limit 75000 \
-    "deposit(address,uint256,bytes32)" "$EDEN_TOKEN_ADDRESS" "1000000000000" "1d4a588696eb171d2f07ac9e56043c98bcaf55e7b2a4af79b7b84b761e020000"
+    "deposit(address,uint256,bytes32)" "$EDEN_TOKEN_ADDRESS" "1000000000000" "1d940617d68b8399fbda054af51624e768f7378d1ec0d890279a61a460020000"
 
     # 1d2eb8183edacceb7f9d72c1b4cfa2a8d0261593e48a47f1a3eecf057c020000

@@ -8,6 +8,8 @@ use candid::{Nat, Principal};
 use ic_ethereum_types::Address;
 use minicbor::{Decode, Encode};
 
+use super::transactions::Reimbursed;
+
 /// The event describing the ckETH minter state transition.
 #[derive(Clone, Eq, PartialEq, Debug, Decode, Encode)]
 pub enum EventType {
@@ -132,6 +134,17 @@ pub enum EventType {
         #[n(2)]
         amount: Erc20Value,
     },
+
+    #[n(26)]
+    ReimbursedErc20Withdrawal{
+        #[cbor(n(0), with = "crate::cbor::nat")]
+        withdrawal_id: Nat,
+        #[n(1)]
+        reimbursed: Reimbursed,
+        #[cbor(n(2), with = "crate::cbor::principal")]
+        to: Principal
+
+    }
 }
 
 impl ReceivedEvent {

@@ -4,11 +4,10 @@ mod tests;
 use std::collections::HashSet;
 
 use candid::Nat;
-use ic_canister_log::log;
 
 pub use super::event::{Event, EventType};
 use super::State;
-use crate::storage::{migrate_event, record_event, total_event_count, with_event_iter, with_old_event_iter};
+use crate::{state::transactions::ReimbursementIndex, storage::{migrate_event, record_event, total_event_count, with_event_iter, with_old_event_iter}};
 /// Updates the state to reflect the given state transition.
 // public because it's used in tests since process_event
 // requires canister infrastructure to retrieve time
@@ -93,6 +92,15 @@ pub fn apply_state_transition(state: &mut State, payload: &EventType) {
         }
         EventType::Erc20TransferCompleted { from, to, amount } => {
             state.record_transfer(*from, *to, *amount);
+        }
+        EventType::ReimbursedErc20Withdrawal { withdrawal_id, reimbursed, to } => {
+            state.record_finalized_reimbursement(
+                *to,
+                ReimbursementIndex::CkErc20 {
+                    withdrawal_id: withdrawal_id.clone()
+                },
+                reimbursed.clone()
+            )
         }
     }
 }

@@ -14,9 +14,13 @@ dfx deploy eden_vault_backend --argument='(variant { InitArg = record {
 } })' --ic
 
 dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
-    last_erc20_scraped_block_number = opt 47469598;
+    erc20_helper_contract_address = opt "0x88603bc36671000B3840DB8C1eE59d9573f254E7";
+    evm_rpc_id = opt principal "7hfb6-caaaa-aaaar-qadga-cai";
 } })' --network ic --upgrade-unchanged
 
+dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {
+    last_erc20_scraped_block_number = opt 47469598;
+} })' --network ic --upgrade-unchanged
 
 dfx deploy eden_vault_backend --argument='(variant { UpgradeArg = record {} })' --network ic
 

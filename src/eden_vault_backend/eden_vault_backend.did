@@ -58,6 +58,14 @@ type EventPayload = variant {
     transaction : UnsignedTransaction;
   };
   QuarantinedReimbursement : record { index : ReimbursementIndex };
+  ReimbursedErc20Withdrawal : record {
+    to : principal;
+    transaction_hash : opt text;
+    withdrawal_id : nat;
+    reimbursed_amount : nat;
+    to_user_id : opt text;
+    reimbursed_in_block : nat;
+  };
   MintedCkErc20 : record {
     "principal" : principal;
     to_user_id : opt text;

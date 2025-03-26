@@ -1,7 +1,6 @@
 use crate::eth_rpc_client::responses::TransactionReceipt;
 use crate::state::{transactions, transactions::EthWithdrawalRequest};
 use crate::tx::{SignedEip1559TransactionRequest, TransactionPrice};
-use crate::user::{get_user_by, GetUserBy, OptionUser};
 use candid::{CandidType, Deserialize, Nat, Principal};
 use icrc_ledger_types::icrc1::account::Account;
 use minicbor::{Decode, Encode};
@@ -406,5 +405,13 @@ pub mod events {
             to_user_id: Option<String>,
             amount: Nat,
         },
+        ReimbursedErc20Withdrawal {
+            to: Principal,
+            to_user_id: Option<String>,
+            withdrawal_id: Nat,
+            reimbursed_in_block: Nat,
+            reimbursed_amount: Nat,
+            transaction_hash: Option<String>,
+        }
     }
 }

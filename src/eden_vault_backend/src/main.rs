@@ -1,7 +1,7 @@
 use crate::checked_amount::CheckedAmountOf;
 use candid::{Nat, Principal};
 use eden_vault_backend::address::{validate_address_as_destination, AddressValidationError};
-use eden_vault_backend::user::{does_user_already_exist, get_user_by as get_stable_user_by, CreateNewUser, GetUserBy, User, UserError, UserStats};
+use eden_vault_backend::user::{does_user_already_exist, get_user_by as get_stable_user_by, GetUserBy, User, UserError, UserStats};
 use eden_vault_backend::checked_amount;
 use eden_vault_backend::deposit::scrape_logs;
 use eden_vault_backend::endpoints::ckerc20::{
@@ -24,7 +24,7 @@ use eden_vault_backend::state::{
 use eden_vault_backend::storage::{get_current_queue_index, get_next_user_salt, inc_user_salt, push_user, set_current_queue_index, with_event_iter};
 use eden_vault_backend::tx::lazy_refresh_gas_fee_estimate;
 use eden_vault_backend::withdraw::{
-    process_retrieve_eth_requests, CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT,
+    process_reimbursement, process_retrieve_eth_requests, CKERC20_WITHDRAWAL_TRANSACTION_GAS_LIMIT
 };
 use eden_vault_backend::{
     state, storage, PROCESS_ETH_RETRIEVE_TRANSACTIONS_INTERVAL, SCRAPING_ETH_LOGS_INTERVAL,
@@ -47,6 +47,11 @@ fn validate_caller_not_anonymous() -> candid::Principal {
     principal
 }
 
+async fn process_retrieve_eth_requests_and_process_reimbursement() {
+    process_retrieve_eth_requests().await;
+    process_reimbursement()
+}
+
 fn setup_timers() {
     ic_cdk_timers::set_timer(Duration::from_secs(0), || {
         // Initialize the minter's public key to make the address known.
@@ -58,7 +63,7 @@ fn setup_timers() {
     ic_cdk_timers::set_timer(Duration::from_secs(0), || ic_cdk::spawn(scrape_logs()));
     ic_cdk_timers::set_timer_interval(SCRAPING_ETH_LOGS_INTERVAL, || ic_cdk::spawn(scrape_logs()));
     ic_cdk_timers::set_timer_interval(PROCESS_ETH_RETRIEVE_TRANSACTIONS_INTERVAL, || {
-        ic_cdk::spawn(process_retrieve_eth_requests())
+        ic_cdk::spawn(process_retrieve_eth_requests_and_process_reimbursement())
     });
 }
 
@@ -464,6 +469,16 @@ fn get_events(arg: GetEventsArg) -> GetEventsResult {
                             GetUserBy::Principal(to)
                         ).get_user_id(),
                     amount: amount.into(),
+                },
+                EventType::ReimbursedErc20Withdrawal { to, withdrawal_id, reimbursed } => EP::ReimbursedErc20Withdrawal {
+                    to,
+                    to_user_id: get_stable_user_by(
+                        GetUserBy::Principal(to)
+                    ).get_user_id(),
+                    withdrawal_id,
+                    reimbursed_in_block: reimbursed.reimbursed_in_block.get().into(),
+                    reimbursed_amount: reimbursed.reimbursed_amount.into(),
+                    transaction_hash: reimbursed.transaction_hash.map(|h| h.to_string()),
                 },
             },
         }
